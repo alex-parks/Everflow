@@ -1,0 +1,27 @@
+FROM python:3.9-slim
+
+# Install system dependencies for image processing
+RUN apt-get update && apt-get install -y \
+    libjpeg-dev \
+    zlib1g-dev \
+    libtiff-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libwebp-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy backend requirements and install Python dependencies
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY backend/ ./
+
+# Create uploads directory
+RUN mkdir -p uploads/sequences
+
+EXPOSE 4005
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "4005", "--reload"]

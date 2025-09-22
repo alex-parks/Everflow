@@ -1,0 +1,299 @@
+{
+  "22012b37499abec1cdbb9c6a4cf2c9d5": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 0,
+    "exposure": 0.0,
+    "size": 128,
+    "file_size": 1475,
+    "created": 1758567986.165586,
+    "last_accessed": 1758568264.2720406
+  },
+  "6e138ad158752aaec882a096c290d128": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 0,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 66849,
+    "created": 1758568007.383962,
+    "last_accessed": 1758568304.4049647
+  },
+  "58748156c6e5dbb9fdb13e96eec706cb": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 1,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 61321,
+    "created": 1758568007.6589136,
+    "last_accessed": 1758568304.4174356
+  },
+  "9c20fcfea212fb66d567e616d07d1139": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 0,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 736,
+    "created": 1758568007.660914,
+    "last_accessed": 1758568007.660914
+  },
+  "19c064a4eb4318b54b4c5a51f818f1f3": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 2,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 58954,
+    "created": 1758568007.9156284,
+    "last_accessed": 1758568304.471357
+  },
+  "1f29e42aadb08f1f11beb82018bc4e26": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 9,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 725,
+    "created": 1758568007.940941,
+    "last_accessed": 1758568007.940941
+  },
+  "9da96d2ca9add36f094300d3d034e772": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 3,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 60066,
+    "created": 1758568008.1737528,
+    "last_accessed": 1758568304.4729996
+  },
+  "58bc99ca2ac940c9e27b94694a0ab219": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 2,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 730,
+    "created": 1758568008.2175243,
+    "last_accessed": 1758568008.2175243
+  },
+  "65e49a74c3aea4c982e721c430a234e1": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 4,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 63815,
+    "created": 1758568008.4377294,
+    "last_accessed": 1758568304.4623652
+  },
+  "1c60652e27f5d758f3fcae406db3ce42": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 1,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 732,
+    "created": 1758568008.4667032,
+    "last_accessed": 1758568008.4667032
+  },
+  "2601ea21b86f4d9304f3b7ddd35b8ae0": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 5,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 64038,
+    "created": 1758568008.7890391,
+    "last_accessed": 1758568304.4818254
+  },
+  "657e1bdbf506b4429a76b6c2c01af9a4": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 7,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 58809,
+    "created": 1758568008.7977579,
+    "last_accessed": 1758568304.484795
+  },
+  "5ebbb84935819a5e67b005072b6a5821": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 6,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 60442,
+    "created": 1758568009.0469942,
+    "last_accessed": 1758568304.4834173
+  },
+  "aee07eddb86d05ae0cf1d2d8c412d716": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 3,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 730,
+    "created": 1758568009.0575686,
+    "last_accessed": 1758568009.0575686
+  },
+  "47ad19ab39787a172e275b19fb579696": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 10,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 726,
+    "created": 1758568009.250609,
+    "last_accessed": 1758568009.250609
+  },
+  "ec137082f0109a3d028d5618b1d7853e": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 4,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 727,
+    "created": 1758568009.4497814,
+    "last_accessed": 1758568009.4497814
+  },
+  "dd4392289d99f1a4a78150bb058e6a20": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 5,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 726,
+    "created": 1758568009.6446626,
+    "last_accessed": 1758568009.6446626
+  },
+  "e896535669e31d0667e33be994490e57": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 11,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 726,
+    "created": 1758568009.838741,
+    "last_accessed": 1758568009.838741
+  },
+  "fc10c4b940cf09f89613b432fec65856": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 8,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 61721,
+    "created": 1758568010.1022997,
+    "last_accessed": 1758568304.4789877
+  },
+  "b11aba1c2a17ddc5cdeaaeb266afc46e": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 9,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 58736,
+    "created": 1758568010.3660848,
+    "last_accessed": 1758568304.4804401
+  },
+  "817924623dab1af1d04c227cc2e1e08e": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 6,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 725,
+    "created": 1758568010.3905284,
+    "last_accessed": 1758568010.3905284
+  },
+  "323ac6b7c9e83acff737c592eadeee28": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 10,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 56533,
+    "created": 1758568010.6258564,
+    "last_accessed": 1758568304.4699054
+  },
+  "0913953bff5316f2113c985a46f25125": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 7,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 725,
+    "created": 1758568010.6562717,
+    "last_accessed": 1758568010.6562717
+  },
+  "fe67432bead098d1633f5fa3af55a805": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 11,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 59098,
+    "created": 1758568010.884712,
+    "last_accessed": 1758568304.459067
+  },
+  "79e9cad045db9e947476bc0e6adb8f3d": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 12,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 729,
+    "created": 1758568010.9205155,
+    "last_accessed": 1758568010.9205155
+  },
+  "e0ab3f58e1a7a5bb2de332b03fa1e36b": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 12,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 61774,
+    "created": 1758568011.140106,
+    "last_accessed": 1758568304.4488597
+  },
+  "32a6d290cf982dc92d76e4192d51077a": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 8,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 725,
+    "created": 1758568011.1554382,
+    "last_accessed": 1758568011.1554382
+  },
+  "6fd2802e99cc72a8a951bcbb8235dd30": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 13,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 727,
+    "created": 1758568011.3457606,
+    "last_accessed": 1758568011.3457606
+  },
+  "32997091d76bde9528560bcd68ad68a1": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 14,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 725,
+    "created": 1758568011.5406432,
+    "last_accessed": 1758568011.5406432
+  },
+  "d8d76ea82fdbe07717c64f9c066f9521": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 15,
+    "exposure": 0.0,
+    "size": 32,
+    "file_size": 728,
+    "created": 1758568011.8219042,
+    "last_accessed": 1758568011.8219042
+  },
+  "739ac3df1e058b8bd4c0635ccce239d4": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 13,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 61919,
+    "created": 1758568011.825287,
+    "last_accessed": 1758568304.4400306
+  },
+  "a07cba5f57b3fa8eeaa5566f592930b9": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 14,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 60376,
+    "created": 1758568012.3337698,
+    "last_accessed": 1758568253.870096
+  },
+  "7c8ac1826619be6c17a93618c1af0bf2": {
+    "sequence_id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+    "frame_num": 15,
+    "exposure": 0.0,
+    "size": null,
+    "file_size": 59090,
+    "created": 1758568012.6720502,
+    "last_accessed": 1758568253.8716626
+  }
+}

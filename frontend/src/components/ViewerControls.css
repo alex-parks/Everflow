@@ -1,0 +1,195 @@
+.viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.5rem 0;
+}
+
+.playback-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.control-btn {
+  background: #404040;
+  color: white;
+  border: none;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
+  background: #505050;
+  transform: translateY(-1px);
+}
+
+.play-pause-btn {
+  background: #646cff;
+  color: white;
+  border: none;
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+  min-width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-pause-btn:hover {
+  background: #535bf2;
+  transform: translateY(-1px);
+}
+
+.frame-counter {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 1rem;
+  color: #ffffff;
+  background: #333;
+  padding: 0.5rem 0.8rem;
+  border-radius: 4px;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.current-frame {
+  font-weight: 600;
+  color: #646cff;
+}
+
+.frame-separator {
+  color: #888;
+  margin: 0 0.2rem;
+}
+
+.total-frames {
+  color: #ccc;
+}
+
+.settings-controls {
+  display: flex;
+  gap: 2rem;
+  margin-left: auto;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.control-group label {
+  color: #ccc;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.exposure-slider {
+  width: 120px;
+  height: 4px;
+  background: #333;
+  outline: none;
+  border-radius: 2px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.exposure-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #646cff;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exposure-slider::-webkit-slider-thumb:hover {
+  background: #535bf2;
+  transform: scale(1.1);
+}
+
+.exposure-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #646cff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.exposure-value {
+  font-family: 'Monaco', 'Consolas', monospace;
+  color: #646cff;
+  font-weight: 600;
+  min-width: 30px;
+  text-align: center;
+}
+
+.speed-select {
+  background: #333;
+  color: white;
+  border: 1px solid #555;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.speed-select:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.preload-btn {
+  background: #2a5c2a;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preload-btn:hover {
+  background: #3a7c3a;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .viewer-controls {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .settings-controls {
+    margin-left: 0;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+  }
+  
+  .control-group {
+    justify-content: space-between;
+  }
+  
+  .exposure-slider {
+    width: 150px;
+  }
+}

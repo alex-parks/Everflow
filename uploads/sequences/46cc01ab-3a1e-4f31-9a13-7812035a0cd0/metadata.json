@@ -1,0 +1,23 @@
+{
+  "id": "46cc01ab-3a1e-4f31-9a13-7812035a0cd0",
+  "frame_count": 16,
+  "frames": [
+    "frame_0000.exr",
+    "frame_0001.exr",
+    "frame_0002.exr",
+    "frame_0003.exr",
+    "frame_0004.exr",
+    "frame_0005.exr",
+    "frame_0006.exr",
+    "frame_0007.exr",
+    "frame_0008.exr",
+    "frame_0009.exr",
+    "frame_0010.exr",
+    "frame_0011.exr",
+    "frame_0012.exr",
+    "frame_0013.exr",
+    "frame_0014.exr",
+    "frame_0015.exr"
+  ],
+  "format": ".exr"
+}
