@@ -4,17 +4,22 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.backend
     container_name: vfx-backend
     ports:
       - "4005:4005"
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
+    devices:
+      - nvidia.com/gpu=all
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    command: uvicorn app:app --host 0.0.0.0 --port 4005 --reload
+      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    command: sh -c "pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 4005 --reload"
 
   frontend-dev:
     image: docker.io/library/node:18-alpine

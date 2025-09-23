@@ -1,0 +1,34 @@
+# Environment variables (contains sensitive tokens)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Uploads directory (contains user data)
+uploads/

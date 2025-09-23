@@ -1,6 +1,16 @@
-FROM python:3.9-slim
+FROM docker.io/nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
-# Install system dependencies for image processing
+# Install Python 3.10
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-venv \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set python3.10 as default python
+RUN ln -sf /usr/bin/python3.10 /usr/bin/python
+
+# Install system dependencies for image processing and EXR support
 RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     zlib1g-dev \
@@ -8,7 +18,30 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     liblcms2-dev \
     libwebp-dev \
+    libopenexr-dev \
+    build-essential \
+    cmake \
+    pkg-config \
+    git \
+    libgl1-mesa-dri \
+    libgl1-mesa-dev \
+    libgl1 \
+    libglx-mesa0 \
+    libegl-mesa0 \
+    mesa-utils \
+    libglib2.0-0 \
+    libgomp1 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    cuda-toolkit-12-1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Set CUDA environment variables
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 WORKDIR /app
 

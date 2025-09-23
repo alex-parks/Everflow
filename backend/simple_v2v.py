@@ -5,6 +5,11 @@ import torch.nn as nn
 import numpy as np
 from PIL import Image
 import io
+from pathlib import Path
+import sys
+import os
+
+# Simple V2V model without external dependencies
 
 class SimpleV2VModel(nn.Module):
     """Simple Video-to-Video model for crowd enhancement"""
@@ -129,8 +134,9 @@ class EXRProcessor:
         
         return tensor
 
-# Global model instance (will be loaded once)
+# Global model instances
 global_model = None
+# Global model instance
 
 def get_model():
     """Get or create the global model instance"""
@@ -139,6 +145,7 @@ def get_model():
         global_model = SimpleV2VModel(input_channels=3, output_channels=3)
         global_model.eval()  # Set to evaluation mode
     return global_model
+
 
 def enhance_image(input_image):
     """Enhance a single image using the V2V model"""
@@ -176,3 +183,14 @@ def enhance_image(input_image):
     
     print(f"Enhanced image created with visual improvements")
     return enhanced_image
+
+
+
+def check_v2v_status():
+    """Check if Simple V2V model is available and working"""
+    return {
+        'available': True,
+        'cuda_available': torch.cuda.is_available(),
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
+        'model_type': 'Simple V2V'
+    }

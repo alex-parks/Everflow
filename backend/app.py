@@ -21,6 +21,7 @@ app.add_middleware(
 
 app.include_router(sequences.router, prefix="/api/sequences", tags=["sequences"])
 app.include_router(frames_router, prefix="/api/frames", tags=["frames"])
+app.include_router(frames_router, prefix="/api/frames-simple", tags=["frames-simple"])
 app.include_router(crowd_router, prefix="/api/crowd", tags=["crowd-enhancement"])
 # app.include_router(video_router, prefix="/api/crowd", tags=["video-processing"])
 

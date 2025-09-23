@@ -10,20 +10,30 @@ python-multipart==0.0.20
 
 # openimageio==3.0.10.1  # Build is failing, will try alternative approach
 
-# PyTorch and AI dependencies
-torch==2.1.0
-torchvision==0.16.0
-torchaudio==2.1.0
+# PyTorch and AI dependencies (flexible versions)
+torch>=2.0.0,<2.2.0
+torchvision>=0.15.0,<0.17.0
+torchaudio>=2.0.0,<2.2.0
 
 # Training and data processing
-albumentations==1.3.1
-# wandb==0.16.0  # Keep this commented for now
-psutil==5.9.6
-tqdm==4.66.1
-PyYAML==6.0.1
-opencv-python==4.8.1.78
-scipy==1.11.4
+albumentations>=1.3.0
+psutil>=5.9.0
+tqdm>=4.65.0
+PyYAML>=6.0
+opencv-python>=4.8.0
+scipy>=1.10.0
 
 # Image and video processing
-imageio==2.31.5
-# ffmpeg-python==0.2.0
+imageio>=2.30.0
+
+# EXR processing
+OpenEXR>=3.2.0
+
+# Stable Diffusion + ControlNet dependencies
+diffusers>=0.29.0,<0.31.0
+accelerate>=0.25.0,<0.27.0
+safetensors>=0.4.0,<0.5.0
+transformers>=4.35.0,<4.37.0
+huggingface-hub>=0.23.0
+controlnet-aux>=0.0.10
+xformers>=0.0.22  # Memory efficient attention
