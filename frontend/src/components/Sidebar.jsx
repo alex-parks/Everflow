@@ -14,11 +14,11 @@ const Sidebar = ({ currentView, onViewChange }) => {
       badge: 'V2V'
     },
     {
-      id: 'crowd-enhancement',
-      title: 'AI Crowd Enhancement',
-      description: 'Transform low-poly proxy crowds into photorealistic people',
-      icon: Users,
-      badge: 'PRO'
+      id: '3d-ai-generation',
+      title: '3D AI Generation',
+      description: 'Text-to-Image-to-3D using Hunyuan models for 3D asset creation',
+      icon: Brain,
+      badge: '3D'
     },
     {
       id: 'sequence-viewer',

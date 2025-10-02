@@ -225,10 +225,11 @@
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.badge-crowd-enhancement {
-  background: rgba(139, 92, 246, 0.2);
+
+.badge-3d-ai-generation {
+  background: rgba(168, 85, 247, 0.2);
   color: #a855f7;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
 .badge-sequence-viewer {

@@ -1,4 +1,4 @@
-/* Simple V2V Workflow Styles - Dark Runway ML Inspired with SD ControlNet Integration */
+/* Simple V2V Workflow Styles - Dark Runway ML Inspired */
 
 .simple-v2v-workflow {
   min-height: 100vh;
@@ -241,10 +241,50 @@
 
 .param-group input[type="text"]:focus,
 .param-group input[type="number"]:focus,
-.param-group textarea:focus {
+.param-group textarea:focus,
+.param-group select:focus {
   outline: none;
   border-color: #8b5cf6;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+.param-group select {
+  width: 100%;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  transition: border-color 0.3s ease;
+  cursor: pointer;
+}
+
+.param-group small {
+  display: block;
+  color: #999;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.sd-parameters h4 {
+  color: #a855f7;
+  margin: 1.5rem 0 1rem 0;
+  font-size: 1rem;
+  border-bottom: 1px solid rgba(168, 85, 247, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+.param-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+  transform: scale(1.1);
+  accent-color: #8b5cf6;
+}
+
+.param-group label input[type="checkbox"] {
+  display: inline;
+  width: auto;
+  margin-right: 0.5rem;
 }
 
 .param-group input[type="checkbox"] {

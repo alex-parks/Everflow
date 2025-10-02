@@ -45,15 +45,40 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 WORKDIR /app
 
+# Install PyTorch with CUDA support first (before other requirements)
+RUN pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+
 # Copy backend requirements and install Python dependencies
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Clone and install Hunyuan3D-2.1
+RUN git clone https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1.git /app/Hunyuan3D-2.1
+
+# Install Hunyuan3D dependencies
+WORKDIR /app/Hunyuan3D-2.1
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Build and install Hunyuan3D paint component
+WORKDIR /app/Hunyuan3D-2.1/hy3dpaint
+RUN pip install -e .
+
+# Install additional dependencies
+RUN pip install xformers flash-attn --no-build-isolation
+
+# Set up model cache directory and environment
+RUN mkdir -p /app/models /app/cache
+ENV HF_HOME=/app/cache
+ENV TRANSFORMERS_CACHE=/app/cache
+
+# Go back to app directory
+WORKDIR /app
+
 # Copy backend code
 COPY backend/ ./
 
-# Create uploads directory
-RUN mkdir -p uploads/sequences
+# Create uploads and output directories
+RUN mkdir -p uploads/sequences uploads/3d_generation outputs/3d_models
 
 EXPOSE 4005
 

@@ -12,7 +12,7 @@ import os
 # Simple V2V model without external dependencies
 
 class SimpleV2VModel(nn.Module):
-    """Simple Video-to-Video model for crowd enhancement"""
+    """Simple Video-to-Video model for image enhancement"""
     
     def __init__(self, input_channels=3, output_channels=3, base_filters=64):
         super().__init__()

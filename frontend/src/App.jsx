@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import SequenceUploader from './components/SequenceUploader'
 import SequenceViewer from './components/SequenceViewer'
 import SequenceSelector from './components/SequenceSelector'
-import CrowdEnhancementWorkflow from './components/CrowdEnhancementWorkflow'
 import SimpleV2VWorkflow from './components/SimpleV2VWorkflow'
+import Hunyuan3DWorkflow from './components/Hunyuan3DWorkflow'
 import Sidebar from './components/Sidebar'
 import './App.css'
 
@@ -65,8 +65,8 @@ function App() {
             <SimpleV2VWorkflow />
           )}
 
-          {currentView === 'crowd-enhancement' && (
-            <CrowdEnhancementWorkflow />
+          {currentView === '3d-ai-generation' && (
+            <Hunyuan3DWorkflow />
           )}
 
           {currentView === 'sequence-viewer' && (

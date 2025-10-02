@@ -4,12 +4,10 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from api import sequences
-# Temporarily use simple version until OpenImageIO works
-from api.frames_simple import router as frames_router
-from api.crowd_processor import router as crowd_router
+from api import hunyuan3d_api
 # from api.video_processor import router as video_router
 
-app = FastAPI(title="VFX Tracking API")
+app = FastAPI(title="VFX Enhancement Platform API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,10 +18,8 @@ app.add_middleware(
 )
 
 app.include_router(sequences.router, prefix="/api/sequences", tags=["sequences"])
-app.include_router(frames_router, prefix="/api/frames", tags=["frames"])
-app.include_router(frames_router, prefix="/api/frames-simple", tags=["frames-simple"])
-app.include_router(crowd_router, prefix="/api/crowd", tags=["crowd-enhancement"])
-# app.include_router(video_router, prefix="/api/crowd", tags=["video-processing"])
+app.include_router(hunyuan3d_api.router, prefix="/api/hunyuan3d", tags=["3d-generation"])
+# app.include_router(video_router, prefix="/api/video", tags=["video-processing"])
 
 @app.get("/")
 def read_root():
