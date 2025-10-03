@@ -6,6 +6,7 @@ import os
 import uuid
 import tempfile
 import shutil
+import logging
 from pathlib import Path
 from typing import Dict, Any
 
@@ -17,6 +18,9 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from hunyuan3d import get_processor, get_status
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -139,6 +143,7 @@ async def get_job_status(job_id: str):
         "job_id": job_id,
         "status": job["status"],
         "progress": job["progress"],
+        "progress_message": job.get("progress_message", ""),
         "result": job["result"],
         "error": job["error"]
     }
@@ -147,7 +152,7 @@ async def get_job_status(job_id: str):
 async def download_3d_file(job_id: str, file_type: str):
     """
     Download generated 3D files
-    file_type can be: fbx, obj, glb, ply
+    file_type can be: fbx, obj, glb, ply, texture
     """
     try:
         if job_id not in PROCESSING_JOBS:
@@ -160,9 +165,24 @@ async def download_3d_file(job_id: str, file_type: str):
         if not job["result"] or "exports" not in job["result"]:
             raise HTTPException(status_code=404, detail="No export files found")
 
+        # Handle texture downloads specially
+        if file_type == "texture":
+            # Return the processed image as texture for now
+            # In a full implementation, this would return a texture pack
+            processed_image_path = job["result"]["metadata"]["processed_image"]
+            if not os.path.exists(processed_image_path):
+                raise HTTPException(status_code=404, detail=f"Texture file not found: {processed_image_path}")
+
+            return FileResponse(
+                path=processed_image_path,
+                filename=f"texture_{job_id}.png",
+                media_type="image/png"
+            )
+
+        # Handle other 3D file downloads
         exports = job["result"]["exports"]
         if file_type not in exports:
-            available_types = list(exports.keys())
+            available_types = list(exports.keys()) + ["texture"]
             raise HTTPException(
                 status_code=404,
                 detail=f"File type '{file_type}' not available. Available: {available_types}"
@@ -230,19 +250,30 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
     """
     Background task for processing 3D generation
     """
+    def update_progress(progress: int, message: str):
+        """Callback to update job progress"""
+        PROCESSING_JOBS[job_id]["progress"] = progress
+        PROCESSING_JOBS[job_id]["progress_message"] = message
+        logger.info(f"Job {job_id}: {progress}% - {message}")
+
     try:
         # Update job status
         PROCESSING_JOBS[job_id]["status"] = "processing"
-        PROCESSING_JOBS[job_id]["progress"] = 10
+        PROCESSING_JOBS[job_id]["progress"] = 5
+        PROCESSING_JOBS[job_id]["progress_message"] = "Initializing 3D generation pipeline..."
 
         # Get processor and run generation
         processor = get_processor()
 
         # Update progress
-        PROCESSING_JOBS[job_id]["progress"] = 30
+        update_progress(10, "Loading Hunyuan3D models...")
 
-        # Run the actual 3D generation
-        result = processor.generate_3d_from_image(image_path, output_dir)
+        # Run the actual 3D generation with progress callback
+        result = processor.generate_3d_from_image(
+            image_path,
+            output_dir,
+            progress_callback=update_progress
+        )
 
         if result["success"]:
             PROCESSING_JOBS[job_id]["status"] = "completed"

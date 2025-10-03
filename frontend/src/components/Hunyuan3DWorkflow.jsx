@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Play, Download, FileImage, Loader2, CheckCircle, AlertCircle, Eye, Zap, Settings, Type, Box, Sparkles } from 'lucide-react';
+import { Upload, Play, Download, FileImage, Loader2, CheckCircle, AlertCircle, Eye, Zap, Settings, Type, Box, Sparkles, FileDown, Package } from 'lucide-react';
 import './Hunyuan3DWorkflow.css';
+import Mesh3DViewer from './Mesh3DViewer';
 
 const Hunyuan3DWorkflow = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -12,6 +13,8 @@ const Hunyuan3DWorkflow = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [imageGenerationProgress, setImageGenerationProgress] = useState(0);
   const [modelGenerationProgress, setModelGenerationProgress] = useState(0);
+  const [modelProgressMessage, setModelProgressMessage] = useState('');
+  const [lastLoggedMessage, setLastLoggedMessage] = useState('');
   const [debugLogs, setDebugLogs] = useState([]);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGenerating3D, setIsGenerating3D] = useState(false);
@@ -43,6 +46,8 @@ const Hunyuan3DWorkflow = () => {
     setUploadProgress(0);
     setImageGenerationProgress(0);
     setModelGenerationProgress(0);
+    setModelProgressMessage('');
+    setLastLoggedMessage('');
     setDebugLogs([]);
     setIsGeneratingImage(false);
     setIsGenerating3D(false);
@@ -171,6 +176,7 @@ const Hunyuan3DWorkflow = () => {
 
     setIsGenerating3D(true);
     setModelGenerationProgress(0);
+    setModelProgressMessage('Initializing 3D generation...');
     setCurrentStep(3);
 
     addDebugLog('⏭️ Transitioning to Step 3: 3D Model Generation', 'info');
@@ -205,6 +211,7 @@ const Hunyuan3DWorkflow = () => {
 
       addDebugLog(`✅ 3D generation job started: ${jobId}`, 'success');
       addDebugLog('⏳ Monitoring processing progress...', 'info');
+      console.log(`Frontend: Starting to poll job ${jobId}`);
 
       // Poll job status
       let completed = false;
@@ -212,29 +219,39 @@ const Hunyuan3DWorkflow = () => {
       const maxAttempts = 120; // 10 minutes max
 
       while (!completed && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for more frequent updates
         attempts++;
 
         const statusResponse = await fetch(`http://localhost:4005/api/hunyuan3d/job-status/${jobId}`);
         if (!statusResponse.ok) {
+          if (statusResponse.status === 404) {
+            throw new Error(`Job ${jobId} not found - possibly due to server restart`);
+          }
           throw new Error(`Failed to get job status: ${statusResponse.statusText}`);
         }
 
         const statusResult = await statusResponse.json();
-        const { status, progress, error, result } = statusResult;
+        const { status, progress, progress_message, error, result } = statusResult;
+
+        // Debug logging for troubleshooting
+        console.log(`Job ${jobId}: Status=${status}, Progress=${progress}%, Message="${progress_message}"`);
 
         setModelGenerationProgress(progress);
 
-        if (status === 'processing') {
-          if (progress < 30) {
-            addDebugLog('🔧 Initializing Hunyuan3D-2.1 models...', 'info');
-          } else if (progress < 60) {
-            addDebugLog('🎯 Generating 3D mesh from image...', 'info');
-          } else if (progress < 90) {
-            addDebugLog('🎨 Applying PBR textures and materials...', 'info');
+        // Update the progress message for display
+        if (progress_message) {
+          setModelProgressMessage(progress_message);
+          // Only log if message changed
+          if (lastLoggedMessage !== progress_message) {
+            addDebugLog(`⚙️ ${progress_message}`, 'info');
+            setLastLoggedMessage(progress_message);
           }
-        } else if (status === 'completed') {
+        }
+
+        if (status === 'completed') {
           completed = true;
+          setModelGenerationProgress(100);
+          setModelProgressMessage('3D generation complete!');
           addDebugLog('✅ 3D model generation complete!', 'success');
 
           // Set the generated 3D model data
@@ -297,6 +314,33 @@ const Hunyuan3DWorkflow = () => {
     } catch (error) {
       addDebugLog(`❌ Download failed: ${error.message}`, 'error');
       console.error('Download error:', error);
+    }
+  };
+
+  const handleDownloadTextures = async () => {
+    try {
+      if (!generated3DModel || !generated3DModel.id) {
+        throw new Error('No 3D model data available');
+      }
+
+      addDebugLog('📥 Starting texture download...', 'info');
+
+      // For now, download the processed image as the texture
+      // In a full implementation, this would download a texture pack
+      const textureUrl = `http://localhost:4005/api/hunyuan3d/download/${generated3DModel.id}/texture`;
+
+      const link = document.createElement('a');
+      link.href = textureUrl;
+      link.download = `textures_${generated3DModel.id}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      addDebugLog('✅ Texture download started', 'success');
+
+    } catch (error) {
+      addDebugLog(`❌ Texture download failed: ${error.message}`, 'error');
+      console.error('Texture download error:', error);
     }
   };
 
@@ -548,6 +592,12 @@ const Hunyuan3DWorkflow = () => {
               ></div>
             </div>
             <p className="processing-percentage">{modelGenerationProgress}% complete</p>
+            {modelProgressMessage && (
+              <p className="processing-details">{modelProgressMessage}</p>
+            )}
+            <p style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+              Debug: Progress={modelGenerationProgress}%, Message="{modelProgressMessage}"
+            </p>
           </div>
         </div>
       )}
@@ -593,13 +643,22 @@ const Hunyuan3DWorkflow = () => {
             </div>
           </div>
 
-          {/* TODO: Add 3D Viewer here */}
+          {/* 3D Mesh Viewer */}
           <div className="model-preview">
             <h4>3D Preview</h4>
-            <div className="model-viewer-placeholder">
-              <Box className="w-16 h-16" style={{ color: '#8b5cf6' }} />
-              <p>3D Model Preview</p>
-              <p className="text-sm">Interactive viewer coming soon</p>
+            <div className="mesh-viewer-wrapper">
+              {generated3DModel.exports?.ply ? (
+                <Mesh3DViewer
+                  meshUrl={`http://localhost:4005/api/hunyuan3d/download/${generated3DModel.jobId}/ply`}
+                  className="interactive-viewer"
+                />
+              ) : (
+                <div className="model-viewer-placeholder">
+                  <Box className="w-12 h-12" style={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                  <p>3D Preview Loading...</p>
+                  <p className="text-sm">PLY mesh file is being processed</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -607,19 +666,51 @@ const Hunyuan3DWorkflow = () => {
           <div className="download-section">
             <h4>Download Assets</h4>
             <div className="download-buttons">
-              {Object.keys(generated3DModel.exports || {}).map((format) => (
+              {/* FBX Download */}
+              {generated3DModel.exports?.fbx && (
                 <button
-                  key={format}
-                  className="download-button"
-                  onClick={() => handleDownload(format)}
+                  className="download-button fbx-download"
+                  onClick={() => handleDownload('fbx')}
+                >
+                  <Package className="w-4 h-4" />
+                  Download FBX Model
+                </button>
+              )}
+
+              {/* OBJ Download (as fallback if no FBX) */}
+              {!generated3DModel.exports?.fbx && generated3DModel.exports?.obj && (
+                <button
+                  className="download-button obj-download"
+                  onClick={() => handleDownload('obj')}
+                >
+                  <Package className="w-4 h-4" />
+                  Download OBJ Model
+                </button>
+              )}
+
+              {/* Textures Download */}
+              <button
+                className="download-button textures-download"
+                onClick={() => handleDownloadTextures()}
+              >
+                <FileDown className="w-4 h-4" />
+                Download Textures
+              </button>
+
+              {/* PLY for 3D Viewer (hidden but functional) */}
+              {generated3DModel.exports?.ply && (
+                <button
+                  className="download-button ply-download secondary"
+                  onClick={() => handleDownload('ply')}
                 >
                   <Download className="w-4 h-4" />
-                  Download {format.toUpperCase()} Model
+                  Download PLY (Raw Mesh)
                 </button>
-              ))}
+              )}
+
               {(!generated3DModel.exports || Object.keys(generated3DModel.exports).length === 0) && (
                 <div className="download-placeholder">
-                  <p>3D model formats will appear here after generation</p>
+                  <p>3D model assets will appear here after generation</p>
                 </div>
               )}
             </div>

@@ -115,7 +115,8 @@ class Hunyuan3DProcessor:
         self,
         image_path: str,
         output_dir: str,
-        remove_background: bool = True
+        remove_background: bool = True,
+        progress_callback=None
     ) -> Dict[str, Any]:
         """
         Generate a complete 3D model from an input image
@@ -152,15 +153,30 @@ class Hunyuan3DProcessor:
 
             # Step 2: Generate 3D shape
             logger.info("Generating 3D mesh from image...")
-            mesh_path = self._generate_shape(processed_image_path, output_dir, image_name)
+            mesh_path = self._generate_shape(processed_image_path, output_dir, image_name, progress_callback)
 
             # Step 3: Apply textures
             logger.info("Applying textures to 3D mesh...")
+            if progress_callback:
+                progress_callback(85, "Applying textures...")
             textured_mesh_path = self._apply_textures(mesh_path, processed_image_path, output_dir, image_name)
+
+            # Add delay to see progress
+            import time
+            time.sleep(2)
 
             # Step 4: Generate additional export formats
             logger.info("Generating export files...")
+            if progress_callback:
+                progress_callback(90, "Generating export formats (OBJ, GLB, FBX)...")
             export_files = self._generate_exports(textured_mesh_path, output_dir, image_name)
+
+            time.sleep(2)
+
+            if progress_callback:
+                progress_callback(95, "Finalizing 3D asset...")
+
+            time.sleep(1)
 
             result = {
                 "success": True,
@@ -208,7 +224,7 @@ class Hunyuan3DProcessor:
             logger.warning(f"Background removal failed: {str(e)}")
             return image
 
-    def _generate_shape(self, image_path: str, output_dir: str, image_name: str) -> str:
+    def _generate_shape(self, image_path: str, output_dir: str, image_name: str, progress_callback=None) -> str:
         """Generate 3D shape from image"""
         try:
             mesh_path = os.path.join(output_dir, f"{image_name}_shape.ply")
@@ -217,8 +233,43 @@ class Hunyuan3DProcessor:
                 # Use actual Hunyuan3D shape generation
                 logger.info("Running Hunyuan3D shape generation...")
 
+                if progress_callback:
+                    progress_callback(15, "Loading image for shape generation")
+
                 # Load and preprocess image
                 image = Image.open(image_path)
+
+                if progress_callback:
+                    progress_callback(20, "Starting diffusion sampling (50 steps)...")
+
+                # Small delay to ensure frontend can see the progress update
+                import time
+                time.sleep(1)
+
+                # Monkey-patch progress tracking for Hunyuan3D pipeline
+                original_progress = None
+                try:
+                    import tqdm
+                    original_tqdm = tqdm.tqdm
+                    def progress_tqdm(iterable=None, *args, **kwargs):
+                        pbar = original_tqdm(iterable, *args, **kwargs)
+                        if pbar.desc and 'Diffusion' in pbar.desc and progress_callback:
+                            # Track diffusion progress from 20% to 60%
+                            for i, item in enumerate(pbar):
+                                progress = 20 + int((i / pbar.total) * 40) if pbar.total else 20
+                                progress_callback(progress, f"Diffusion sampling: {i+1}/{pbar.total} steps")
+                                yield item
+                        elif pbar.desc and 'Volume' in pbar.desc and progress_callback:
+                            # Track volume decoding from 60% to 80%
+                            for i, item in enumerate(pbar):
+                                progress = 60 + int((i / pbar.total) * 20) if pbar.total else 60
+                                progress_callback(progress, f"Volume decoding: {i+1}/{pbar.total} voxels")
+                                yield item
+                        else:
+                            yield from pbar
+                    tqdm.tqdm = progress_tqdm
+                except:
+                    pass
 
                 # Generate 3D mesh using Hunyuan3D
                 mesh_result = self.shape_pipeline(image=image)
@@ -226,6 +277,16 @@ class Hunyuan3DProcessor:
                     mesh_untextured = mesh_result[0]
                 else:
                     mesh_untextured = mesh_result
+
+                # Restore original tqdm if we patched it
+                try:
+                    if original_tqdm:
+                        tqdm.tqdm = original_tqdm
+                except:
+                    pass
+
+                if progress_callback:
+                    progress_callback(80, "Exporting 3D mesh...")
 
                 # Save the generated mesh
                 mesh_untextured.export(mesh_path)

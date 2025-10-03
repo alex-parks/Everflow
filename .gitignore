@@ -1,13 +1,24 @@
 # Environment variables (contains sensitive tokens)
 .env
+.env.local
+.env.production
 
-# Python cache
+# Python cache and bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 *.so
+*.egg
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -15,20 +26,143 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
 *.log
+logs/
 
-# Node modules
+# Node.js
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn/
+.pnp.*
 
 # Build outputs
 dist/
 build/
+out/
+
+# AI/ML Model caches and data
+cache/
+.cache/
+models/
+*.pkl
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Hugging Face cache
+.huggingface/
+transformers_cache/
+
+# Diffusers cache
+diffusers_cache/
+
+# PyTorch cache
+.torch/
+
+# Stable Diffusion models and checkpoints
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.flac
+
+# 3D model files (generated outputs)
+*.ply
+*.obj
+*.fbx
+*.glb
+*.gltf
+*.stl
+
+# Image outputs (except small thumbnails)
+outputs/
+generated_images/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+# But keep small thumbnails
+!*thumbnail*.png
+!*thumb*.png
+!*icon*.png
 
 # Uploads directory (contains user data)
 uploads/
+
+# Docker volumes and data
+docker-data/
+volumes/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Backend model cache directories
+backend/cache/
+backend/models/
+backend/.cache/
+
+# Frontend build artifacts
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.nuxt/
+
+# Package manager lock files (keep package.json but ignore locks for flexibility)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Coverage reports
+coverage/
+.coverage
+.nyc_output/
+
+# Professional ignore patterns for AI projects
+# Weights & Biases
+wandb/
+
+# MLflow
+mlruns/
+
+# Tensorboard logs
+runs/
+tensorboard/
+
+# CUDA compiled files
+*.cubin
+*.fatbin
