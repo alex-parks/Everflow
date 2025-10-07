@@ -7,13 +7,6 @@ const Sidebar = ({ currentView, onViewChange }) => {
 
   const workflows = [
     {
-      id: 'simple-v2v',
-      title: 'Simple V2V Enhancement',
-      description: 'Video-to-Video neural network model for basic image enhancement',
-      icon: Brain,
-      badge: 'V2V'
-    },
-    {
       id: '3d-ai-generation',
       title: '3D AI Generation',
       description: 'Text-to-Image-to-3D using Hunyuan models for 3D asset creation',

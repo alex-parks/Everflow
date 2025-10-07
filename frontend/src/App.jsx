@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react'
 import SequenceUploader from './components/SequenceUploader'
 import SequenceViewer from './components/SequenceViewer'
 import SequenceSelector from './components/SequenceSelector'
-import SimpleV2VWorkflow from './components/SimpleV2VWorkflow'
 import Hunyuan3DWorkflow from './components/Hunyuan3DWorkflow'
 import Sidebar from './components/Sidebar'
 import './App.css'
 
 function App() {
-  const [currentView, setCurrentView] = useState('simple-v2v')
+  const [currentView, setCurrentView] = useState('3d-ai-generation')
   const [sequences, setSequences] = useState([])
   const [currentSequence, setCurrentSequence] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -61,10 +60,6 @@ function App() {
         )}
         
         <main className="app-main">
-          {currentView === 'simple-v2v' && (
-            <SimpleV2VWorkflow />
-          )}
-
           {currentView === '3d-ai-generation' && (
             <Hunyuan3DWorkflow />
           )}

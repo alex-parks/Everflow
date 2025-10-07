@@ -12,38 +12,216 @@ from typing import Dict, Any
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import aiofiles
 
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from hunyuan3d import get_processor, get_status
+from hunyuan_image import get_image_processor, get_image_model_status
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Request models
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+    negative_prompt: str = None
+    width: int = 1024
+    height: int = 1024
+    num_inference_steps: int = 50
+    guidance_scale: float = 7.5
+    seed: int = None
+
 # Storage for processing jobs
 PROCESSING_JOBS = {}
+TEXT_TO_IMAGE_JOBS = {}
 UPLOAD_DIR = Path("uploads/3d_generation")
 OUTPUT_DIR = Path("outputs/3d_models")
+IMAGE_GENERATION_DIR = Path("outputs/generated_images")
 
 # Ensure directories exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+IMAGE_GENERATION_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get("/status")
 async def get_hunyuan3d_status():
     """Get the current status of Hunyuan3D models"""
     try:
-        status = get_status()
+        status_3d = get_status()
+        status_image = get_image_model_status()
         return {
             "success": True,
-            "status": status
+            "hunyuan3d_status": status_3d,
+            "hunyuan_image_status": status_image
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+@router.post("/generate-image")
+async def generate_image_from_text(
+    request: ImageGenerationRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Generate an image from text prompt using Hunyuan Image 3.0
+    Returns a job_id for tracking progress
+    """
+    try:
+        # Validate parameters
+        if not request.prompt or len(request.prompt.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+        if request.width < 256 or request.width > 2048 or request.height < 256 or request.height > 2048:
+            raise HTTPException(status_code=400, detail="Width and height must be between 256 and 2048 pixels")
+
+        if request.num_inference_steps < 1 or request.num_inference_steps > 100:
+            raise HTTPException(status_code=400, detail="Inference steps must be between 1 and 100")
+
+        if request.guidance_scale < 1.0 or request.guidance_scale > 20.0:
+            raise HTTPException(status_code=400, detail="Guidance scale must be between 1.0 and 20.0")
+
+        # Generate job ID
+        job_id = str(uuid.uuid4())
+
+        # Initialize job status
+        TEXT_TO_IMAGE_JOBS[job_id] = {
+            "status": "queued",
+            "progress": 0,
+            "prompt": request.prompt,
+            "negative_prompt": request.negative_prompt,
+            "width": request.width,
+            "height": request.height,
+            "num_inference_steps": request.num_inference_steps,
+            "guidance_scale": request.guidance_scale,
+            "seed": request.seed,
+            "result": None,
+            "error": None,
+            "progress_message": "Queued for processing..."
+        }
+
+        # Start background processing
+        background_tasks.add_task(
+            process_text_to_image,
+            job_id, request.prompt, request.negative_prompt, request.width, request.height,
+            request.num_inference_steps, request.guidance_scale, request.seed
+        )
+
+        return {
+            "success": True,
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Image generation started"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start image generation: {str(e)}")
+
+@router.get("/image-job-status/{job_id}")
+async def get_image_job_status(job_id: str):
+    """Get the status of a text-to-image generation job"""
+    if job_id not in TEXT_TO_IMAGE_JOBS:
+        raise HTTPException(status_code=404, detail=f"Image generation job not found: {job_id}")
+
+    job = TEXT_TO_IMAGE_JOBS[job_id]
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": job["status"],
+        "progress": job["progress"],
+        "progress_message": job.get("progress_message", ""),
+        "result": job["result"],
+        "error": job["error"]
+    }
+
+@router.get("/download-generated-image/{job_id}")
+async def download_generated_image(job_id: str):
+    """Download a generated image"""
+    try:
+        if job_id not in TEXT_TO_IMAGE_JOBS:
+            raise HTTPException(status_code=404, detail=f"Image generation job not found: {job_id}")
+
+        job = TEXT_TO_IMAGE_JOBS[job_id]
+        if job["status"] != "completed":
+            raise HTTPException(status_code=400, detail=f"Job not completed. Status: {job['status']}")
+
+        if not job["result"] or "image_path" not in job["result"]:
+            raise HTTPException(status_code=404, detail="No generated image found")
+
+        image_path = job["result"]["image_path"]
+        if not os.path.exists(image_path):
+            raise HTTPException(status_code=404, detail=f"Generated image file not found: {image_path}")
+
+        return FileResponse(
+            path=image_path,
+            filename=f"generated_{job_id}.png",
+            media_type="image/png"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+@router.post("/generate-3d-from-generated-image/{image_job_id}")
+async def generate_3d_from_generated_image(image_job_id: str, background_tasks: BackgroundTasks):
+    """
+    Start 3D generation process using a generated image from text-to-image
+    Returns a job_id for tracking progress
+    """
+    try:
+        # Check if the image generation job exists and is completed
+        if image_job_id not in TEXT_TO_IMAGE_JOBS:
+            raise HTTPException(status_code=404, detail=f"Image generation job not found: {image_job_id}")
+
+        image_job = TEXT_TO_IMAGE_JOBS[image_job_id]
+        if image_job["status"] != "completed":
+            raise HTTPException(status_code=400, detail=f"Image generation not completed. Status: {image_job['status']}")
+
+        if not image_job["result"] or "image_path" not in image_job["result"]:
+            raise HTTPException(status_code=404, detail="No generated image found")
+
+        image_path = image_job["result"]["image_path"]
+        if not os.path.exists(image_path):
+            raise HTTPException(status_code=404, detail="Generated image file not found")
+
+        # Generate job ID for 3D generation
+        job_id = str(uuid.uuid4())
+
+        # Create output directory for this job
+        job_output_dir = OUTPUT_DIR / job_id
+        job_output_dir.mkdir(exist_ok=True)
+
+        # Initialize job status
+        PROCESSING_JOBS[job_id] = {
+            "status": "queued",
+            "progress": 0,
+            "image_id": f"generated_{image_job_id}",
+            "image_path": image_path,
+            "output_dir": str(job_output_dir),
+            "result": None,
+            "error": None,
+            "source_type": "generated",
+            "source_job_id": image_job_id
+        }
+
+        # Start background processing
+        background_tasks.add_task(process_3d_generation, job_id, image_path, str(job_output_dir))
+
+        return {
+            "success": True,
+            "job_id": job_id,
+            "status": "queued",
+            "message": "3D generation from generated image started",
+            "source_image_job_id": image_job_id
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start 3D generation from generated image: {str(e)}")
 
 @router.post("/upload-image")
 async def upload_image_for_3d(file: UploadFile = File(...)):
@@ -245,6 +423,63 @@ async def list_jobs():
         "jobs": jobs,
         "total": len(jobs)
     }
+
+async def process_text_to_image(
+    job_id: str, prompt: str, negative_prompt: str, width: int, height: int,
+    num_inference_steps: int, guidance_scale: float, seed: int
+):
+    """
+    Background task for processing text-to-image generation
+    """
+    def update_progress(progress: int, message: str):
+        """Callback to update job progress"""
+        TEXT_TO_IMAGE_JOBS[job_id]["progress"] = progress
+        TEXT_TO_IMAGE_JOBS[job_id]["progress_message"] = message
+        logger.info(f"Image Job {job_id}: {progress}% - {message}")
+
+    try:
+        # Update job status
+        TEXT_TO_IMAGE_JOBS[job_id]["status"] = "processing"
+        TEXT_TO_IMAGE_JOBS[job_id]["progress"] = 5
+        TEXT_TO_IMAGE_JOBS[job_id]["progress_message"] = "Initializing image generation pipeline..."
+
+        # Get processor and run generation
+        processor = get_image_processor()
+
+        # Update progress
+        update_progress(10, "Loading Hunyuan Image 3.0 model...")
+
+        # Run the actual image generation with progress callback
+        result = processor.generate_image(
+            prompt=prompt,
+            output_dir=str(IMAGE_GENERATION_DIR),
+            negative_prompt=negative_prompt,
+            width=width,
+            height=height,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            progress_callback=update_progress
+        )
+
+        if result["success"]:
+            TEXT_TO_IMAGE_JOBS[job_id]["status"] = "completed"
+            TEXT_TO_IMAGE_JOBS[job_id]["progress"] = 100
+            TEXT_TO_IMAGE_JOBS[job_id]["result"] = result
+            TEXT_TO_IMAGE_JOBS[job_id]["progress_message"] = "Image generation complete!"
+        else:
+            TEXT_TO_IMAGE_JOBS[job_id]["status"] = "failed"
+            TEXT_TO_IMAGE_JOBS[job_id]["error"] = result.get("error", "Unknown error")
+
+    except Exception as e:
+        TEXT_TO_IMAGE_JOBS[job_id]["status"] = "failed"
+        TEXT_TO_IMAGE_JOBS[job_id]["error"] = str(e)
+        logger.error(f"Image generation failed for job {job_id}: {str(e)}")
+
+    finally:
+        # Ensure progress is set to 100 if completed or failed
+        if TEXT_TO_IMAGE_JOBS[job_id]["status"] in ["completed", "failed"]:
+            TEXT_TO_IMAGE_JOBS[job_id]["progress"] = 100
 
 async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
     """

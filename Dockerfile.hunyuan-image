@@ -1,0 +1,44 @@
+FROM docker.io/nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Install Python and system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python packages for Hunyuan Image 3.0
+# Using exact versions that work with Hunyuan Image 3.0
+RUN pip3 install --no-cache-dir \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
+    transformers>=4.56.0 \
+    diffusers>=0.32.0 \
+    accelerate==1.1.1 \
+    safetensors>=0.4.5 \
+    einops==0.8.0 \
+    huggingface-hub>=0.30.2 \
+    pillow==10.4.0 \
+    numpy==1.26.4 \
+    fastapi==0.115.12 \
+    uvicorn[standard]==0.34.3 \
+    aiofiles==24.1.0 \
+    python-multipart==0.0.20 \
+    pydantic==2.10.6
+
+# Copy Hunyuan Image model files
+COPY backend/HunyuanImage-3-Model /app/HunyuanImage-3-Model
+COPY backend/HunyuanImage-3-Official /app/HunyuanImage-3-Official
+
+# Copy the Hunyuan Image API service
+COPY backend/hunyuan_image_service.py /app/hunyuan_image_service.py
+
+# Expose port for Hunyuan Image service
+EXPOSE 4006
+
+# Start the Hunyuan Image service
+CMD ["uvicorn", "hunyuan_image_service:app", "--host", "0.0.0.0", "--port", "4006", "--reload"]

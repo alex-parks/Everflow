@@ -5,26 +5,27 @@ aiofiles==24.1.0
 python-multipart==0.0.20
 pydantic==2.10.6
 
-# PyTorch and AI libraries (install separately with CUDA)
-# pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+# PyTorch and AI libraries
+# Using 2.1.2 for compatibility with xformers
+torch==2.1.2
+torchvision==0.16.2
+torchaudio==2.1.2
 
-# Hunyuan3D-2.1 Dependencies
-transformers==4.46.0
+# Hunyuan3D-2.1 and HunyuanImage-3.0 Dependencies
+transformers>=4.46.0
 diffusers==0.30.0
 accelerate==1.1.1
-huggingface-hub==0.30.2
+huggingface-hub>=0.30.2
 safetensors==0.4.4
 einops==0.8.0
 timm
 torchmetrics==1.6.0
+xformers==0.0.23.post1
 
 # Image processing and computer vision
 pillow==10.4.0
 numpy==1.24.4
-scipy==1.14.1
 opencv-python==4.10.0.84
-imageio==2.36.0
-scikit-image==0.24.0
 rembg==2.0.65
 realesrgan==0.3.0
 
@@ -36,22 +37,17 @@ xatlas==0.0.9
 open3d==0.18.0
 
 # Configuration and utilities
-omegaconf==2.3.0
-pyyaml==6.0.2
-configargparse==1.7
 tqdm==4.66.5
 psutil==6.0.0
-pandas==2.2.2
 
 # Build tools
 ninja==1.11.1.1
 pybind11==2.13.4
 
-# UI framework
-gradio==5.33.0
+# UI framework (removed - using custom React frontend)
 
-# EXR processing for VFX
-OpenEXR>=3.2.0
+# EXR processing for VFX sequence viewer
+openimageio
 
 # CUDA libraries (optional, for GPU acceleration)
 # cupy-cuda12x==13.4.1

@@ -1,26 +1,68 @@
 version: '3.8'
 
 services:
-  backend:
+  # Main backend API gateway - routes requests to appropriate services
+  backend-gateway:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: vfx-backend
+      dockerfile: Dockerfile.gateway
+    container_name: vfx-backend-gateway
     ports:
       - "4005:4005"
     volumes:
       - ./backend:/app
       - ./uploads:/app/uploads
-    devices:
-      - nvidia.com/gpu=all
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+      - HUNYUAN_IMAGE_SERVICE=http://hunyuan-image:4006
+      - HUNYUAN3D_SERVICE=http://hunyuan3d:4007
+    command: uvicorn gateway:app --host 0.0.0.0 --port 4005 --reload
+    depends_on:
+      - hunyuan-image
+      - hunyuan3d
+
+  # Hunyuan Image 3.0 Service (PyTorch 2.5.1)
+  hunyuan-image:
+    build:
+      context: .
+      dockerfile: Dockerfile.hunyuan-image
+    container_name: vfx-hunyuan-image
+    ports:
+      - "4006:4006"
+    volumes:
+      - ./backend/HunyuanImage-3-Model:/app/HunyuanImage-3-Model
+      - ./backend/HunyuanImage-3-Official:/app/HunyuanImage-3-Official
+      - ./backend/hunyuan_image_service.py:/app/hunyuan_image_service.py
+      - ./outputs:/app/outputs
+    devices:
+      - nvidia.com/gpu=all
+    environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
-    command: sh -c "pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 4005 --reload"
+      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
 
+  # Hunyuan3D 2.1 Service (PyTorch 2.1.2)
+  hunyuan3d:
+    build:
+      context: .
+      dockerfile: Dockerfile.hunyuan3d
+    container_name: vfx-hunyuan3d
+    ports:
+      - "4007:4007"
+    volumes:
+      - ./backend/Hunyuan3D-2.1:/app/Hunyuan3D-2.1
+      - ./backend/hunyuan3d_service.py:/app/hunyuan3d_service.py
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    devices:
+      - nvidia.com/gpu=all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+
+  # Frontend development server
   frontend-dev:
     image: docker.io/library/node:18-alpine
     container_name: vfx-frontend-dev
@@ -32,7 +74,9 @@ services:
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     depends_on:
-      - backend
+      - backend-gateway
+    environment:
+      - VITE_API_URL=http://localhost:4005
 
 volumes:
   frontend_node_modules:

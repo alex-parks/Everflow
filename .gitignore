@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.production
+.env.*
+*.env
+!.env.example
 
 # Python cache and bytecode
 __pycache__/
@@ -68,6 +71,24 @@ models/
 *.safetensors
 *.bin
 
+# IMPORTANT: Hunyuan model directories (160GB+ of model files!)
+backend/HunyuanImage-3-Model/
+backend/HunyuanImage-3-Official/
+backend/Hunyuan3D-2.1/
+backend/hunyuan3d_models/
+backend/ComfyUI/
+backend/sd_models/
+backend/SDXL/
+
+# Model weight files (can be huge)
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+model-*.safetensors
+pytorch_model*.bin
+
 # Hugging Face cache
 .huggingface/
 transformers_cache/
@@ -124,17 +145,57 @@ uploads/
 # Docker volumes and data
 docker-data/
 volumes/
+everflow_frontend_node_modules/
+
+# Docker/Podman specific
+.dockerignore
+*.tar
+*.tar.gz
 
 # Temporary files
 tmp/
 temp/
 *.tmp
 *.temp
+/tmp/
+
+# System files
+*.swp
+*.swo
+*.swn
+.~*
+
+# Secrets and credentials (CRITICAL!)
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+credentials/
+api_keys.json
+config.secret.json
 
 # Backend model cache directories
 backend/cache/
 backend/models/
 backend/.cache/
+backend/__pycache__/
+backend/*.pyc
+backend/api/__pycache__/
+
+# Python test/debug files
+backend/test_*.py
+backend/debug_*.py
+backend/download_*.py
+backend/fix_*.py
+backend/install_*.py
+
+# Backup and temporary service files
+backend/*_v2.py
+backend/*_v3.py
+backend/*_backup.py
+backend/*_old.py
+backend/*_test.py
 
 # Frontend build artifacts
 frontend/dist/
@@ -142,10 +203,12 @@ frontend/build/
 frontend/.next/
 frontend/.nuxt/
 
-# Package manager lock files (keep package.json but ignore locks for flexibility)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# Package manager lock files
+# Note: You may want to commit these for reproducible builds
+# Uncomment if you want to track them:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
 # Coverage reports
 coverage/
@@ -166,3 +229,47 @@ tensorboard/
 # CUDA compiled files
 *.cubin
 *.fatbin
+
+# Downloaded files during development
+backend/*.whl
+backend/*.tar.gz
+backend/*.zip
+
+# Weird artifact files from package installation
+backend/=0.30.2
+backend/=0.32.0
+backend/=0.4.5
+backend/=4.56.0
+backend/=*
+
+# Build artifacts
+build_docker.sh.log
+podman-compose.log
+docker-compose.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+.project
+.classpath
+.settings/
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux specific
+*~
+.directory
+.Trash-*
+.nfs*

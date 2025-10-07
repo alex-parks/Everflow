@@ -65,35 +65,93 @@ const Hunyuan3DWorkflow = () => {
     addDebugLog(`🎨 Starting text-to-image generation with prompt: "${textPrompt}"`, 'info');
 
     try {
-      // TODO: Replace with actual HunyuanImage-3.0 API call
-      addDebugLog('⚠️ HunyuanImage-3.0 endpoint not yet configured', 'info');
-      addDebugLog('📝 This is a placeholder for Hunyuan text-to-image generation', 'info');
+      // Start image generation using Hunyuan Image 3.0
+      addDebugLog('🚀 Calling Hunyuan Image 3.0 API...', 'info');
 
-      // Simulate image generation
-      setImageGenerationProgress(20);
-      addDebugLog('🔧 Initializing HunyuanImage-3.0 model...', 'info');
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      setImageGenerationProgress(60);
-      addDebugLog('🎨 Generating high-quality image from text...', 'info');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      setImageGenerationProgress(100);
-      addDebugLog('✅ Image generation complete!', 'success');
-
-      // Mock generated image
-      const mockImage = {
-        url: `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJsaW5lYXItZ3JhZGllbnQoNDVkZWcsICM4YjVjZjYsICM3YzNhZWQpIi8+PHRleHQgeD0iNTAlIiB5PSI0NSUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkdlbmVyYXRlZCBJbWFnZTwvdGV4dD48dGV4dCB4PSI1MCUiIHk9IjU1JSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNykiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5mcm9tIEh1bnl1YW5JbWFnZS0zLjA8L3RleHQ+PC9zdmc+`,
-        metadata: {
+      const generationResponse = await fetch('http://localhost:4005/api/hunyuan3d/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           prompt: textPrompt,
-          resolution: '512x512',
-          model: 'HunyuanImage-3.0'
-        }
-      };
+          width: 1024,
+          height: 1024,
+          num_inference_steps: 50,
+          guidance_scale: 7.5
+        })
+      });
 
-      setGeneratedImage(mockImage);
-      addDebugLog('⏭️ Transitioning to Step 2: Image-to-3D Generation', 'info');
-      setCurrentStep(2);
+      if (!generationResponse.ok) {
+        throw new Error(`Image generation failed: ${generationResponse.statusText}`);
+      }
+
+      const generationResult = await generationResponse.json();
+      const imageJobId = generationResult.job_id;
+
+      addDebugLog(`✅ Image generation job started: ${imageJobId}`, 'success');
+      addDebugLog('⏳ Monitoring image generation progress...', 'info');
+
+      // Poll job status
+      let completed = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 5 minutes max
+
+      while (!completed && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        attempts++;
+
+        const statusResponse = await fetch(`http://localhost:4005/api/hunyuan3d/image-job-status/${imageJobId}`);
+        if (!statusResponse.ok) {
+          if (statusResponse.status === 404) {
+            throw new Error(`Image job ${imageJobId} not found - possibly due to server restart`);
+          }
+          throw new Error(`Failed to get image job status: ${statusResponse.statusText}`);
+        }
+
+        const statusResult = await statusResponse.json();
+        const { status, progress, progress_message, error, result } = statusResult;
+
+        console.log(`Image Job ${imageJobId}: Status=${status}, Progress=${progress}%, Message="${progress_message}"`);
+
+        setImageGenerationProgress(progress);
+
+        // Update the progress message for display
+        if (progress_message) {
+          addDebugLog(`⚙️ ${progress_message}`, 'info');
+        }
+
+        if (status === 'completed') {
+          completed = true;
+          setImageGenerationProgress(100);
+          addDebugLog('✅ Image generation complete!', 'success');
+
+          // Get the generated image
+          const imageUrl = `http://localhost:4005/api/hunyuan3d/download-generated-image/${imageJobId}`;
+
+          const generatedImageData = {
+            url: imageUrl,
+            imageJobId: imageJobId,
+            metadata: {
+              prompt: textPrompt,
+              resolution: `${result.metadata.width || 1024}x${result.metadata.height || 1024}`,
+              model: 'HunyuanImage-3.0',
+              inference_steps: result.metadata.inference_steps || 50,
+              guidance_scale: result.metadata.guidance_scale || 7.5
+            }
+          };
+
+          setGeneratedImage(generatedImageData);
+          addDebugLog('🎉 Image ready! You can now review and proceed to 3D generation.', 'success');
+
+        } else if (status === 'failed') {
+          throw new Error(error || 'Unknown image generation error');
+        }
+      }
+
+      if (!completed) {
+        throw new Error('Image generation timeout - process took longer than expected');
+      }
 
     } catch (error) {
       addDebugLog(`❌ Image generation failed: ${error.message}`, 'error');
@@ -159,8 +217,7 @@ const Hunyuan3DWorkflow = () => {
       addDebugLog('✅ Image uploaded to server successfully!', 'success');
       addDebugLog(`🆔 Server Image ID: ${uploadResult.image_id}`, 'info');
       addDebugLog(`📐 Image dimensions: ${img.naturalWidth}x${img.naturalHeight} (${uploadedImageData.metadata.aspectRatio}:1)`, 'info');
-      addDebugLog('⏭️ Transitioning to Step 2: Image-to-3D Generation', 'info');
-      setCurrentStep(2);
+      addDebugLog('🎉 Image ready! You can now review and proceed to 3D generation.', 'success');
 
     } catch (error) {
       addDebugLog(`❌ Upload failed: ${error.message}`, 'error');
@@ -183,31 +240,45 @@ const Hunyuan3DWorkflow = () => {
     addDebugLog('🚀 Starting image-to-3D conversion with Hunyuan3D-2.1...', 'info');
 
     try {
-      // Get image ID for uploaded image or use generated image
-      let imageId = null;
+      let generationResponse;
+      let jobId;
+
       if (uploadedImage?.imageId) {
-        imageId = uploadedImage.imageId;
+        // Use uploaded image workflow
+        const imageId = uploadedImage.imageId;
         addDebugLog(`🆔 Using uploaded image ID: ${imageId}`, 'info');
+
+        setModelGenerationProgress(10);
+        addDebugLog('🔧 Starting Hunyuan3D-2.1 processing...', 'info');
+
+        // Start 3D generation job for uploaded image
+        generationResponse = await fetch(`http://localhost:4005/api/hunyuan3d/generate-3d/${imageId}`, {
+          method: 'POST'
+        });
+
+      } else if (generatedImage?.imageJobId) {
+        // Use generated image workflow
+        const imageJobId = generatedImage.imageJobId;
+        addDebugLog(`🆔 Using generated image job ID: ${imageJobId}`, 'info');
+
+        setModelGenerationProgress(10);
+        addDebugLog('🔧 Starting Hunyuan3D-2.1 processing from generated image...', 'info');
+
+        // Start 3D generation job for generated image
+        generationResponse = await fetch(`http://localhost:4005/api/hunyuan3d/generate-3d-from-generated-image/${imageJobId}`, {
+          method: 'POST'
+        });
+
       } else {
-        // For generated images, we would need to upload them first
-        addDebugLog('📝 Generated image workflow not yet implemented', 'info');
-        throw new Error('Generated image to 3D not yet supported');
+        throw new Error('No valid image source found for 3D generation');
       }
-
-      setModelGenerationProgress(10);
-      addDebugLog('🔧 Starting Hunyuan3D-2.1 processing...', 'info');
-
-      // Start 3D generation job
-      const generationResponse = await fetch(`http://localhost:4005/api/hunyuan3d/generate-3d/${imageId}`, {
-        method: 'POST'
-      });
 
       if (!generationResponse.ok) {
         throw new Error(`3D generation failed: ${generationResponse.statusText}`);
       }
 
       const generationResult = await generationResponse.json();
-      const jobId = generationResult.job_id;
+      jobId = generationResult.job_id;
 
       addDebugLog(`✅ 3D generation job started: ${jobId}`, 'success');
       addDebugLog('⏳ Monitoring processing progress...', 'info');
@@ -466,6 +537,35 @@ const Hunyuan3DWorkflow = () => {
                   <p>{imageGenerationProgress}% generated</p>
                 </div>
               )}
+
+              {/* Show generated image preview */}
+              {generatedImage && (
+                <div className="generated-image-preview">
+                  <h4>Generated Image</h4>
+                  <div className="image-container">
+                    <img
+                      src={generatedImage.url}
+                      alt="Generated from text prompt"
+                      className="preview-image"
+                    />
+                  </div>
+                  <div className="image-info">
+                    <p><strong>Generated from:</strong> "{generatedImage.metadata.prompt}"</p>
+                    <p><strong>Resolution:</strong> {generatedImage.metadata.resolution}</p>
+                    <p><strong>Model:</strong> {generatedImage.metadata.model}</p>
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      addDebugLog('⏭️ Proceeding to Step 2: Image-to-3D Generation', 'info');
+                      setCurrentStep(2);
+                    }}
+                  >
+                    <Box className="w-5 h-5" />
+                    Create 3D Model with this Image
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -507,6 +607,36 @@ const Hunyuan3DWorkflow = () => {
                     ></div>
                   </div>
                   <p>{uploadProgress}% uploaded</p>
+                </div>
+              )}
+
+              {/* Show uploaded image preview */}
+              {uploadedImage && (
+                <div className="uploaded-image-preview">
+                  <h4>Uploaded Image</h4>
+                  <div className="image-container">
+                    <img
+                      src={uploadedImage.url}
+                      alt="Uploaded for 3D generation"
+                      className="preview-image"
+                    />
+                  </div>
+                  <div className="image-info">
+                    <p><strong>Filename:</strong> {uploadedImage.metadata.filename}</p>
+                    <p><strong>Dimensions:</strong> {uploadedImage.metadata.width}×{uploadedImage.metadata.height}px</p>
+                    <p><strong>Aspect Ratio:</strong> {uploadedImage.metadata.aspectRatio}:1</p>
+                    <p><strong>File Size:</strong> {(uploadedImage.metadata.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={() => {
+                      addDebugLog('⏭️ Proceeding to Step 2: Image-to-3D Generation', 'info');
+                      setCurrentStep(2);
+                    }}
+                  >
+                    <Box className="w-5 h-5" />
+                    Create 3D Model with this Image
+                  </button>
                 </div>
               )}
             </div>
