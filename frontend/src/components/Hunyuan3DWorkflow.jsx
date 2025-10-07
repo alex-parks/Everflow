@@ -77,8 +77,8 @@ const Hunyuan3DWorkflow = () => {
           prompt: textPrompt,
           width: 1024,
           height: 1024,
-          num_inference_steps: 50,
-          guidance_scale: 7.5
+          num_inference_steps: 8,  // Distilled model optimized for 8 steps
+          guidance_scale: 3.25      // Distilled model optimal guidance
         })
       });
 
@@ -95,7 +95,7 @@ const Hunyuan3DWorkflow = () => {
       // Poll job status
       let completed = false;
       let attempts = 0;
-      const maxAttempts = 60; // 5 minutes max
+      const maxAttempts = 240; // 4 minutes max (first load takes ~2 min, then ~4s per generation)
 
       while (!completed && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
@@ -135,9 +135,9 @@ const Hunyuan3DWorkflow = () => {
             metadata: {
               prompt: textPrompt,
               resolution: `${result.metadata.width || 1024}x${result.metadata.height || 1024}`,
-              model: 'HunyuanImage-3.0',
-              inference_steps: result.metadata.inference_steps || 50,
-              guidance_scale: result.metadata.guidance_scale || 7.5
+              model: 'HunyuanImage-2.1-Distilled',
+              inference_steps: result.metadata.inference_steps || 8,
+              guidance_scale: result.metadata.guidance_scale || 3.25
             }
           };
 

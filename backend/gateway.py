@@ -159,9 +159,9 @@ async def download_3d_file(job_id: str, file_type: str):
 
 @app.post("/api/hunyuan3d/generate-image")
 async def generate_image(request: ImageGenerationRequest):
-    """Generate image using Hunyuan Image 3.0"""
+    """Generate image using Hunyuan Image 2.1"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 f"{HUNYUAN_IMAGE_SERVICE}/generate",
                 json=request.dict()

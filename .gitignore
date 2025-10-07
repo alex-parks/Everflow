@@ -80,6 +80,20 @@ backend/ComfyUI/
 backend/sd_models/
 backend/SDXL/
 
+# HunyuanImage 2.1 model checkpoints and cache (~162GB)
+backend/HunyuanImage-2.1/ckpts/
+backend/HunyuanImage-2.1/ckpts/dit/
+backend/HunyuanImage-2.1/ckpts/vae/
+backend/HunyuanImage-2.1/ckpts/reprompt/
+backend/HunyuanImage-2.1/ckpts/text_encoder/
+backend/HunyuanImage-2.1/ckpts/.cache/
+backend/HunyuanImage-2.1/.cache/
+
+# Text encoder models (Qwen, ByT5, Glyph-SDXL)
+backend/HunyuanImage-2.1/ckpts/text_encoder/llm/
+backend/HunyuanImage-2.1/ckpts/text_encoder/byt5-small/
+backend/HunyuanImage-2.1/ckpts/text_encoder/Glyph-SDXL-v2/
+
 # Model weight files (can be huge)
 *.safetensors
 *.ckpt
@@ -92,6 +106,16 @@ pytorch_model*.bin
 # Hugging Face cache
 .huggingface/
 transformers_cache/
+hunyuan_cache/
+
+# Hunyuan3D model cache (downloaded models)
+.cache/hy3dgen/
+.u2net/
+
+# Container-specific caches
+**/root/.cache/huggingface/
+**/root/.cache/hy3dgen/
+**/root/.u2net/
 
 # Diffusers cache
 diffusers_cache/

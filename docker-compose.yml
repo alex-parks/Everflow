@@ -22,7 +22,7 @@ services:
       - hunyuan-image
       - hunyuan3d
 
-  # Hunyuan Image 3.0 Service (PyTorch 2.5.1)
+  # Hunyuan Image 2.1 Service (PyTorch 2.6+)
   hunyuan-image:
     build:
       context: .
@@ -31,16 +31,18 @@ services:
     ports:
       - "4006:4006"
     volumes:
-      - ./backend/HunyuanImage-3-Model:/app/HunyuanImage-3-Model
-      - ./backend/HunyuanImage-3-Official:/app/HunyuanImage-3-Official
+      - ./backend/HunyuanImage-2.1:/app/HunyuanImage-2.1
       - ./backend/hunyuan_image_service.py:/app/hunyuan_image_service.py
       - ./outputs:/app/outputs
+      - hunyuan_cache:/root/.cache/huggingface
     devices:
       - nvidia.com/gpu=all
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      - CUDA_VISIBLE_DEVICES=0,1
 
   # Hunyuan3D 2.1 Service (PyTorch 2.1.2)
   hunyuan3d:
@@ -80,3 +82,4 @@ services:
 
 volumes:
   frontend_node_modules:
+  hunyuan_cache:

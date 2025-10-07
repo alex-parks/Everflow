@@ -38,9 +38,10 @@ OUTPUT_DIR = Path("/app/outputs/3d")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Global model instance
+# Global model instances
 shape_pipeline = None
 paint_pipeline = None
+rembg = None
 
 def load_hunyuan3d_models():
     """Load Hunyuan3D 2.1 models"""
@@ -54,34 +55,38 @@ def load_hunyuan3d_models():
 
         # Add model path to sys.path
         model_path = "/app/Hunyuan3D-2.1"
-        if os.path.exists(model_path) and model_path not in sys.path:
-            sys.path.insert(0, model_path)
+        sys.path.insert(0, os.path.join(model_path, 'hy3dshape'))
+        sys.path.insert(0, os.path.join(model_path, 'hy3dpaint'))
+        sys.path.insert(0, model_path)
 
-        from diffusers import HunyuanShapePipeline, HunyuanPaintPipeline
+        # Import correct pipelines from Hunyuan3D
+        from hy3dshape import Hunyuan3DDiTFlowMatchingPipeline
+        from hy3dshape.rembg import BackgroundRemover
+        from textureGenPipeline import Hunyuan3DPaintPipeline, Hunyuan3DPaintConfig
+
+        # Initialize background remover
+        global rembg
+        rembg = BackgroundRemover()
 
         # Load shape generation pipeline
-        shape_pipeline = HunyuanShapePipeline.from_pretrained(
-            "tencent/Hunyuan3D-2.1",
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto" if torch.cuda.is_available() else None
-        )
+        shape_pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained('tencent/Hunyuan3D-2.1')
 
-        # Load texture painting pipeline
-        paint_pipeline = HunyuanPaintPipeline.from_pretrained(
-            "tencent/Hunyuan3D-2.1-Paint",
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto" if torch.cuda.is_available() else None
-        )
-
-        if torch.cuda.is_available():
-            shape_pipeline = shape_pipeline.to("cuda")
-            paint_pipeline = paint_pipeline.to("cuda")
+        # Initialize texture generation pipeline
+        max_num_view = 6
+        resolution = 512
+        conf = Hunyuan3DPaintConfig(max_num_view, resolution)
+        conf.realesrgan_ckpt_path = os.path.join(model_path, "hy3dpaint/ckpt/RealESRGAN_x4plus.pth")
+        conf.multiview_cfg_path = os.path.join(model_path, "hy3dpaint/cfgs/hunyuan-paint-pbr.yaml")
+        conf.custom_pipeline = os.path.join(model_path, "hy3dpaint/hunyuanpaintpbr")
+        paint_pipeline = Hunyuan3DPaintPipeline(conf)
 
         logger.info("✅ Successfully loaded Hunyuan3D 2.1 models")
         return True
 
     except Exception as e:
         logger.error(f"Failed to load models: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
 
 @app.get("/")
