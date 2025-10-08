@@ -59,10 +59,10 @@ def health_check():
 
 @app.get("/api/hunyuan3d/status")
 async def hunyuan3d_status():
-    """Get Hunyuan3D service status"""
+    """Get Hunyuan3D and Hunyuan Image service status"""
     try:
         # Get both service statuses
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             # Get Hunyuan3D status
             hunyuan3d_resp = await client.get(f"{HUNYUAN3D_SERVICE}/status")
             hunyuan3d_data = hunyuan3d_resp.json()
@@ -71,10 +71,15 @@ async def hunyuan3d_status():
             hunyuan_image_resp = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/status")
             hunyuan_image_data = hunyuan_image_resp.json()
 
+            # Get model loading status
+            model_status_resp = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/model-status")
+            model_status_data = model_status_resp.json()
+
         return {
             "success": True,
             "hunyuan3d_status": hunyuan3d_data,
-            "hunyuan_image_status": hunyuan_image_data
+            "hunyuan_image_status": hunyuan_image_data,
+            "model_status": model_status_data
         }
     except Exception as e:
         logger.error(f"Failed to get status: {e}")

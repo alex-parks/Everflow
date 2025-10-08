@@ -9,6 +9,7 @@ os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 import sys
 import torch
 import logging
+import asyncio
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import uuid
 from typing import Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -49,17 +51,25 @@ IMAGE_JOBS = {}
 OUTPUT_DIR = Path("/app/outputs/images")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Global pipeline instance
+# Global pipeline and refiner instances
 pipeline = None
+refiner = None
+model_loading = False
+model_loaded = False
 
-def load_hunyuan_pipeline():
-    """Load Hunyuan Image 2.1 pipeline with FP8 quantization"""
-    global pipeline
+# Thread pool for blocking operations
+executor = ThreadPoolExecutor(max_workers=2)
 
-    if pipeline is not None:
+def load_hunyuan_pipeline_sync():
+    """Load Hunyuan Image 2.1 pipeline and refiner with FP8 quantization"""
+    global pipeline, refiner, model_loaded, model_loading
+
+    if pipeline is not None and refiner is not None:
+        logger.info("✅ Models already loaded")
         return True
 
     try:
+        model_loading = True
         logger.info("🔄 Loading Hunyuan Image 2.1 pipeline...")
 
         # Change to repo directory so relative paths work
@@ -70,32 +80,53 @@ def load_hunyuan_pipeline():
 
         from hyimage.diffusion.pipelines.hunyuanimage_pipeline import HunyuanImagePipeline
 
-        # Load with FP8 quantization - models are in ./ckpts
-        logger.info("Loading models from local ckpts directory...")
+        # Load main pipeline with FP8 quantization
+        logger.info("📦 Loading main generation pipeline from local ckpts...")
         pipeline = HunyuanImagePipeline.from_pretrained(
             model_name="hunyuanimage-v2.1-distilled",  # Use distilled version for speed
             use_fp8=True  # FP8 quantization for efficiency
         )
         pipeline = pipeline.to("cuda")
+        logger.info("✅ Main pipeline loaded successfully")
 
-        logger.info("✅ Successfully loaded Hunyuan Image 2.1 pipeline")
+        # Load refiner pipeline separately to avoid reloading during generation
+        logger.info("📦 Loading refiner pipeline from local ckpts...")
+        refiner = HunyuanImagePipeline.from_pretrained(
+            model_name="hunyuanimage-v2.1-refiner",
+            use_fp8=True
+        )
+        refiner = refiner.to("cuda")
+        logger.info("✅ Refiner pipeline loaded successfully")
+
+        logger.info("🎉 All models loaded and ready for generation!")
+        model_loaded = True
+        model_loading = False
         return True
 
     except Exception as e:
-        logger.error(f"Failed to load pipeline: {e}")
+        logger.error(f"❌ Failed to load pipeline: {e}")
         import traceback
         logger.error(traceback.format_exc())
+        model_loading = False
+        model_loaded = False
         return False
 
+async def load_hunyuan_pipeline():
+    """Async wrapper for loading pipeline"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, load_hunyuan_pipeline_sync)
+
 def unload_hunyuan_pipeline():
-    """Unload Hunyuan Image pipeline to free GPU memory"""
-    global pipeline
+    """Unload Hunyuan Image pipelines to free GPU memory"""
+    global pipeline, refiner, model_loaded
 
-    if pipeline is not None:
-        logger.info("🔄 Unloading Hunyuan Image pipeline to free GPU memory...")
+    if pipeline is not None or refiner is not None:
+        logger.info("🔄 Unloading Hunyuan Image pipelines to free GPU memory...")
 
-        # Clear pipeline
+        # Clear pipelines
         pipeline = None
+        refiner = None
+        model_loaded = False
 
         # Force GPU memory cleanup
         import gc
@@ -106,15 +137,46 @@ def unload_hunyuan_pipeline():
         return True
     return False
 
+@app.on_event("startup")
+async def startup_event():
+    """Pre-load models on startup"""
+    logger.info("🚀 Starting Hunyuan Image 2.1 Service...")
+    logger.info("⏳ Pre-loading AI models in background...")
+    # Load models in background so startup doesn't block
+    asyncio.create_task(load_hunyuan_pipeline())
+
+@app.get("/model-status")
+async def get_model_status():
+    """Get current model loading status"""
+    return {
+        "loaded": model_loaded,
+        "loading": model_loading,
+        "ready": model_loaded and not model_loading
+    }
+
 @app.post("/generate")
 async def generate_image(request: ImageGenerationRequest, background_tasks: BackgroundTasks):
     """Initiate image generation"""
     job_id = str(uuid.uuid4())
 
+    # Determine initial status based on model state
+    if model_loading:
+        initial_status = "queued"
+        initial_stage = "Waiting for AI models to finish loading..."
+        initial_progress = 0
+    elif not model_loaded:
+        initial_status = "queued"
+        initial_stage = "Preparing to load AI models..."
+        initial_progress = 0
+    else:
+        initial_status = "queued"
+        initial_stage = "Ready to generate - queued for processing"
+        initial_progress = 0
+
     IMAGE_JOBS[job_id] = {
-        "status": "queued",
-        "progress": 0,
-        "stage": "Queued for processing",
+        "status": initial_status,
+        "progress": initial_progress,
+        "stage": initial_stage,
         "image_path": None,
         "error": None,
         "result": {
@@ -130,7 +192,7 @@ async def generate_image(request: ImageGenerationRequest, background_tasks: Back
     # Start generation in background
     background_tasks.add_task(process_image_generation, job_id, request)
 
-    return {"job_id": job_id, "status": "queued"}
+    return {"job_id": job_id, "status": initial_status}
 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):
@@ -167,6 +229,58 @@ async def download_image(job_id: str):
     """Download generated image (alias for gateway compatibility)"""
     return await get_image(job_id)
 
+def run_generation_sync(job_id: str, request: ImageGenerationRequest, update_callback):
+    """Synchronous image generation to run in executor"""
+    global pipeline, refiner
+
+    try:
+        output_path = OUTPUT_DIR / f"{job_id}.png"
+
+        # Create generator with seed if provided
+        generator = None
+        if request.seed is not None:
+            generator = torch.Generator(device="cuda").manual_seed(request.seed)
+
+        # Generate base image with main pipeline
+        logger.info(f"🎨 Generating base image with main pipeline...")
+        image = pipeline(
+            prompt=request.prompt,
+            width=request.width,
+            height=request.height,
+            use_reprompt=request.use_reprompt,
+            use_refiner=False,  # Don't use built-in refiner, we'll use ours
+            num_inference_steps=request.num_inference_steps,
+            guidance_scale=request.guidance_scale,
+            shift=request.shift,
+            generator=generator,
+        )
+
+        # Apply refiner if requested
+        if request.use_refiner and refiner is not None:
+            logger.info(f"✨ Applying refiner for enhanced quality...")
+            update_callback(65, "Applying refiner for enhanced quality...")
+
+            # Use the pre-loaded refiner
+            image = refiner(
+                prompt=request.prompt,
+                image=image,  # Pass the base image
+                num_inference_steps=4,  # Refiner uses fewer steps
+                guidance_scale=request.guidance_scale,
+                shift=1,  # Refiner uses shift=1
+                generator=generator,
+            )
+
+        # Save image
+        update_callback(85, "Saving generated image...")
+        image.save(str(output_path))
+        logger.info(f"💾 Image saved to {output_path}")
+
+        return str(output_path)
+
+    except Exception as e:
+        logger.error(f"Generation failed: {e}")
+        raise
+
 async def process_image_generation(job_id: str, request: ImageGenerationRequest):
     """Process image generation in background"""
 
@@ -174,116 +288,71 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         """Update job progress and status message"""
         IMAGE_JOBS[job_id]["progress"] = progress
         IMAGE_JOBS[job_id]["stage"] = message
-        logger.info(f"[{progress}%] {message}")
+        logger.info(f"Job {job_id} [{progress}%] {message}")
 
     try:
         IMAGE_JOBS[job_id]["status"] = "processing"
-        update_progress(0, "Initializing image generation pipeline")
+        update_progress(0, "Starting image generation pipeline...")
 
-        # Load pipeline if needed
-        update_progress(5, "Loading AI models...")
-        if not load_hunyuan_pipeline():
-            raise Exception("Failed to load pipeline")
-        update_progress(15, "AI models loaded successfully")
+        # Wait for models to load if they're not ready
+        if model_loading:
+            update_progress(2, "⏳ Waiting for AI models to load (this may take 2-3 minutes on first run)...")
 
-        # Generate image
-        logger.info(f"Generating image for job {job_id}")
-        logger.info(f"Prompt: {request.prompt}")
-        logger.info(f"Size: {request.width}x{request.height}")
+            # Poll until models are loaded
+            while model_loading:
+                await asyncio.sleep(2)
+                update_progress(5, "⏳ Still loading AI models... (loading transformer, VAE, text encoders)")
 
-        output_path = OUTPUT_DIR / f"{job_id}.png"
+        elif not model_loaded:
+            update_progress(5, "📦 Loading AI models for the first time...")
+            success = await load_hunyuan_pipeline()
+            if not success:
+                raise Exception("Failed to load AI models")
+            update_progress(15, "✅ AI models loaded successfully")
+        else:
+            update_progress(15, "✅ AI models ready - using pre-loaded pipeline")
 
-        # Create generator with seed if provided
-        update_progress(20, "Preparing generation parameters")
-        generator = None
+        # Prepare for generation
+        logger.info(f"🎨 Generating image for job {job_id}")
+        logger.info(f"📝 Prompt: {request.prompt}")
+        logger.info(f"📐 Size: {request.width}x{request.height}")
+        logger.info(f"🔧 Steps: {request.num_inference_steps}, Guidance: {request.guidance_scale}")
+
+        update_progress(20, "Preparing generation parameters...")
+
         if request.seed is not None:
-            generator = torch.Generator(device="cuda").manual_seed(request.seed)
             update_progress(22, f"Using seed {request.seed} for reproducibility")
 
-        # Generate with progress tracking
-        update_progress(25, f"Starting diffusion sampling ({request.num_inference_steps} steps)")
+        # Generate image (run in executor to avoid blocking)
+        update_progress(25, f"🎨 Generating base image ({request.num_inference_steps} diffusion steps)...")
 
-        # Wrap pipeline call to track progress
-        import tqdm
-        original_tqdm = tqdm.tqdm
-
-        class ProgressTracker:
-            def __init__(self, total_steps):
-                self.total_steps = total_steps
-                self.current_step = 0
-
-            def update_step(self, step):
-                self.current_step = step
-                progress = int(25 + (step / self.total_steps) * 60)  # 25-85%
-                update_progress(progress, f"Generating image: step {step}/{self.total_steps}")
-
-        tracker = ProgressTracker(request.num_inference_steps)
-
-        def custom_tqdm(iterable=None, *args, **kwargs):
-            if iterable is not None and hasattr(iterable, '__len__'):
-                total = len(iterable)
-                if total == request.num_inference_steps:
-                    class TqdmWrapper:
-                        def __init__(self, iterable):
-                            self.iterable = iterable
-
-                        def __iter__(self):
-                            for i, item in enumerate(self.iterable):
-                                tracker.update_step(i + 1)
-                                yield item
-
-                        def update(self, n=1):
-                            pass
-
-                        def close(self):
-                            pass
-
-                        def set_description(self, desc):
-                            pass
-
-                    return TqdmWrapper(iterable)
-            return original_tqdm(iterable, *args, **kwargs)
-
-        tqdm.tqdm = custom_tqdm
-
-        image = pipeline(
-            prompt=request.prompt,
-            width=request.width,
-            height=request.height,
-            use_reprompt=request.use_reprompt,
-            use_refiner=request.use_refiner,
-            num_inference_steps=request.num_inference_steps,
-            guidance_scale=request.guidance_scale,
-            shift=request.shift,
-            generator=generator,
+        loop = asyncio.get_event_loop()
+        output_path = await loop.run_in_executor(
+            executor,
+            run_generation_sync,
+            job_id,
+            request,
+            update_progress
         )
 
-        # Restore original tqdm
-        tqdm.tqdm = original_tqdm
-
-        update_progress(85, "Diffusion complete, saving image")
-
-        # Save image
-        image.save(str(output_path))
-        logger.info(f"Image saved to {output_path}")
-
-        update_progress(95, f"Image saved ({request.width}x{request.height})")
+        update_progress(95, f"✅ Image generated successfully ({request.width}x{request.height})")
 
         IMAGE_JOBS[job_id]["status"] = "completed"
-        IMAGE_JOBS[job_id]["image_path"] = str(output_path)
-        update_progress(100, f"Complete! Image ready at {output_path.name}")
+        IMAGE_JOBS[job_id]["image_path"] = output_path
+        update_progress(100, f"🎉 Complete! Image ready for download")
 
-        logger.info(f"Pipeline remains loaded on dedicated GPU 0 for instant reuse")
+        logger.info(f"✨ Job {job_id} completed successfully")
+        logger.info(f"💡 Pipeline remains loaded in memory for instant reuse")
 
     except Exception as e:
-        logger.error(f"Job {job_id} failed: {e}")
+        logger.error(f"❌ Job {job_id} failed: {e}")
         logger.error(f"Error type: {type(e).__name__}")
         import traceback
         logger.error(traceback.format_exc())
 
         IMAGE_JOBS[job_id]["status"] = "failed"
         IMAGE_JOBS[job_id]["error"] = str(e)
-        IMAGE_JOBS[job_id]["stage"] = f"Failed: {str(e)}"
+        IMAGE_JOBS[job_id]["stage"] = f"❌ Failed: {str(e)}"
 
 @app.get("/health")
 async def health_check():

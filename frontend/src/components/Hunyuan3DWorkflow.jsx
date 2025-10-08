@@ -12,6 +12,7 @@ const Hunyuan3DWorkflow = () => {
   const [generated3DModel, setGenerated3DModel] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [imageGenerationProgress, setImageGenerationProgress] = useState(0);
+  const [imageProgressMessage, setImageProgressMessage] = useState('');
   const [modelGenerationProgress, setModelGenerationProgress] = useState(0);
   const [modelProgressMessage, setModelProgressMessage] = useState('');
   const [lastLoggedMessage, setLastLoggedMessage] = useState('');
@@ -45,6 +46,7 @@ const Hunyuan3DWorkflow = () => {
     setGenerated3DModel(null);
     setUploadProgress(0);
     setImageGenerationProgress(0);
+    setImageProgressMessage('');
     setModelGenerationProgress(0);
     setModelProgressMessage('');
     setLastLoggedMessage('');
@@ -110,15 +112,20 @@ const Hunyuan3DWorkflow = () => {
         }
 
         const statusResult = await statusResponse.json();
-        const { status, progress, progress_message, error, result } = statusResult;
+        const { status, progress, stage, error, result } = statusResult;
 
-        console.log(`Image Job ${imageJobId}: Status=${status}, Progress=${progress}%, Message="${progress_message}"`);
+        console.log(`Image Job ${imageJobId}: Status=${status}, Progress=${progress}%, Stage="${stage}"`);
 
-        setImageGenerationProgress(progress);
+        setImageGenerationProgress(progress || 0);
 
         // Update the progress message for display
-        if (progress_message) {
-          addDebugLog(`⚙️ ${progress_message}`, 'info');
+        const progressMessage = stage || `Progress: ${progress}%`;
+        setImageProgressMessage(progressMessage);
+
+        // Only log if message has changed to avoid spam
+        if (progressMessage !== lastLoggedMessage) {
+          addDebugLog(`⚙️ ${progressMessage}`, 'info');
+          setLastLoggedMessage(progressMessage);
         }
 
         if (status === 'completed') {
@@ -523,7 +530,11 @@ const Hunyuan3DWorkflow = () => {
                 ) : (
                   <Sparkles className="w-5 h-5" />
                 )}
-                {isGeneratingImage ? 'Generating Image...' : 'Generate Image'}
+                {isGeneratingImage
+                  ? (imageProgressMessage && (imageProgressMessage.includes('Loading') || imageProgressMessage.includes('loading') || imageProgressMessage.includes('⏳')))
+                    ? 'Loading AI Models...'
+                    : 'Generating Image...'
+                  : 'Generate Image'}
               </button>
 
               {isGeneratingImage && (
@@ -534,7 +545,9 @@ const Hunyuan3DWorkflow = () => {
                       style={{ width: `${imageGenerationProgress}%` }}
                     ></div>
                   </div>
-                  <p>{imageGenerationProgress}% generated</p>
+                  <p className="progress-text">
+                    {imageProgressMessage || `${imageGenerationProgress}% generated`}
+                  </p>
                 </div>
               )}
 
