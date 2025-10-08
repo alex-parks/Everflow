@@ -100,6 +100,7 @@ backend/HunyuanImage-2.1/ckpts/text_encoder/Glyph-SDXL-v2/
 *.pt
 *.pth
 *.bin
+*.onnx
 model-*.safetensors
 pytorch_model*.bin
 
@@ -111,11 +112,16 @@ hunyuan_cache/
 # Hunyuan3D model cache (downloaded models)
 .cache/hy3dgen/
 .u2net/
+backend/.cache/hy3dgen/
+backend/.u2net/
 
 # Container-specific caches
 **/root/.cache/huggingface/
 **/root/.cache/hy3dgen/
 **/root/.u2net/
+**/.cache/huggingface/
+**/.cache/hy3dgen/
+**/.u2net/
 
 # Diffusers cache
 diffusers_cache/
@@ -151,6 +157,8 @@ diffusers_cache/
 # Image outputs (except small thumbnails)
 outputs/
 generated_images/
+backend/outputs/
+backend/generated_images/
 *.png
 *.jpg
 *.jpeg
@@ -165,6 +173,7 @@ generated_images/
 
 # Uploads directory (contains user data)
 uploads/
+backend/uploads/
 
 # Docker volumes and data
 docker-data/
@@ -182,6 +191,8 @@ temp/
 *.tmp
 *.temp
 /tmp/
+backend/tmp/
+backend/temp/
 
 # System files
 *.swp
@@ -266,10 +277,14 @@ backend/=0.4.5
 backend/=4.56.0
 backend/=*
 
-# Build artifacts
+# Build artifacts and service logs
 build_docker.sh.log
 podman-compose.log
 docker-compose.log
+hunyuan3d_build.log
+hunyuan_image_build.log
+*_build.log
+container_*.log
 
 # IDE and editor files
 .vscode/

@@ -16,6 +16,7 @@ import uuid
 from typing import Dict, Any, Optional
 import shutil
 import aiofiles
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -59,10 +60,9 @@ def load_hunyuan3d_models():
         sys.path.insert(0, os.path.join(model_path, 'hy3dpaint'))
         sys.path.insert(0, model_path)
 
-        # Import correct pipelines from Hunyuan3D
-        from hy3dshape import Hunyuan3DDiTFlowMatchingPipeline
+        # Import shape generation pipeline only (no paint/texture)
+        from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline
         from hy3dshape.rembg import BackgroundRemover
-        from textureGenPipeline import Hunyuan3DPaintPipeline, Hunyuan3DPaintConfig
 
         # Initialize background remover
         global rembg
@@ -70,17 +70,13 @@ def load_hunyuan3d_models():
 
         # Load shape generation pipeline
         shape_pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained('tencent/Hunyuan3D-2.1')
+        logger.info("✅ Shape pipeline loaded successfully")
 
-        # Initialize texture generation pipeline
-        max_num_view = 6
-        resolution = 512
-        conf = Hunyuan3DPaintConfig(max_num_view, resolution)
-        conf.realesrgan_ckpt_path = os.path.join(model_path, "hy3dpaint/ckpt/RealESRGAN_x4plus.pth")
-        conf.multiview_cfg_path = os.path.join(model_path, "hy3dpaint/cfgs/hunyuan-paint-pbr.yaml")
-        conf.custom_pipeline = os.path.join(model_path, "hy3dpaint/hunyuanpaintpbr")
-        paint_pipeline = Hunyuan3DPaintPipeline(conf)
+        # Skip paint pipeline (requires bpy/Blender)
+        paint_pipeline = None
+        logger.info("ℹ️  Paint pipeline disabled - will generate untextured 3D shapes")
 
-        logger.info("✅ Successfully loaded Hunyuan3D 2.1 models")
+        logger.info("✅ Successfully loaded Hunyuan3D 2.1 shape generation")
         return True
 
     except Exception as e:
@@ -88,6 +84,13 @@ def load_hunyuan3d_models():
         import traceback
         logger.error(traceback.format_exc())
         return False
+
+@app.on_event("startup")
+async def startup_event():
+    """Load models on startup"""
+    logger.info("Starting up - loading Hunyuan3D models...")
+    load_hunyuan3d_models()
+    logger.info("Startup complete")
 
 @app.get("/")
 def read_root():
@@ -129,7 +132,7 @@ async def upload_image(file: UploadFile = File(...)):
     }
 
 @app.post("/generate/{image_id}")
-async def generate_3d(image_id: str, background_tasks: BackgroundTasks):
+async def generate_3d(image_id: str):
     """Generate 3D model from uploaded image"""
 
     # Find uploaded image
@@ -154,12 +157,13 @@ async def generate_3d(image_id: str, background_tasks: BackgroundTasks):
         "error": None
     }
 
-    # Start background task
-    background_tasks.add_task(
-        process_3d_generation,
-        job_id,
-        image_path,
-        str(job_output_dir)
+    # Start truly async background task (doesn't block response)
+    asyncio.create_task(
+        process_3d_generation(
+            job_id,
+            image_path,
+            str(job_output_dir)
+        )
     )
 
     return {
@@ -204,9 +208,9 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
         PROCESSING_JOBS[job_id]["status"] = "processing"
         PROCESSING_JOBS[job_id]["progress"] = 10
 
-        # Load models if needed
-        if not load_hunyuan3d_models():
-            raise Exception("Failed to load models")
+        # Models are already loaded at startup
+        if shape_pipeline is None:
+            raise Exception("Shape pipeline not loaded")
 
         PROCESSING_JOBS[job_id]["progress"] = 30
 
@@ -238,23 +242,31 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
                 guidance_scale=7.5
             )
 
-        # Extract mesh
-        if hasattr(shape_output, 'meshes'):
+        # Extract mesh (handle different output formats)
+        if isinstance(shape_output, list):
+            mesh = shape_output[0]  # Get first mesh from list
+        elif hasattr(shape_output, 'meshes'):
             mesh = shape_output.meshes[0]
         else:
             mesh = shape_output
 
+        logger.info(f"Mesh type: {type(mesh)}")
+
         PROCESSING_JOBS[job_id]["progress"] = 70
 
-        # Apply texture/paint
-        logger.info("Applying texture...")
-
-        with torch.no_grad():
-            painted_mesh = paint_pipeline(
-                mesh,
-                image,
-                num_views=6
-            )
+        # Apply texture/paint if available
+        if paint_pipeline is not None:
+            logger.info("Applying texture...")
+            with torch.no_grad():
+                painted_mesh = paint_pipeline(
+                    mesh,
+                    image,
+                    num_views=6
+                )
+            final_mesh = painted_mesh
+        else:
+            logger.info("Skipping texture (paint pipeline not available)")
+            final_mesh = mesh
 
         PROCESSING_JOBS[job_id]["progress"] = 90
 
@@ -262,13 +274,16 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
         import trimesh
 
         # Convert to trimesh object
-        if hasattr(painted_mesh, 'vertices'):
+        if isinstance(final_mesh, trimesh.Trimesh):
+            tri_mesh = final_mesh
+        elif hasattr(final_mesh, 'vertices') and hasattr(final_mesh, 'faces'):
             tri_mesh = trimesh.Trimesh(
-                vertices=painted_mesh.vertices,
-                faces=painted_mesh.faces
+                vertices=final_mesh.vertices,
+                faces=final_mesh.faces
             )
         else:
-            tri_mesh = painted_mesh
+            # Already a trimesh object or compatible format
+            tri_mesh = final_mesh
 
         # Export formats
         exports = {}

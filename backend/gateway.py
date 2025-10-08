@@ -103,7 +103,8 @@ async def upload_image_for_3d(file: UploadFile = File(...)):
 async def generate_3d_model(image_id: str):
     """Generate 3D model from uploaded image"""
     try:
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout since model loading can take ~30 seconds
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(f"{HUNYUAN3D_SERVICE}/generate/{image_id}")
             data = response.json()
 
@@ -121,8 +122,9 @@ async def generate_3d_model(image_id: str):
 async def get_3d_job_status(job_id: str):
     """Get 3D generation job status"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(f"{HUNYUAN3D_SERVICE}/job/{job_id}")
+            response.raise_for_status()
             data = response.json()
 
         return {
@@ -130,19 +132,23 @@ async def get_3d_job_status(job_id: str):
             "job_id": job_id,
             **data
         }
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout getting job status for {job_id}: {e}")
+        raise HTTPException(status_code=504, detail="Request timeout")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error getting job status for {job_id}: {e.response.status_code}")
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to get job status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Failed to get job status for {job_id}: {type(e).__name__} - {e}")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 @app.get("/api/hunyuan3d/download/{job_id}/{file_type}")
 async def download_3d_file(job_id: str, file_type: str):
     """Download 3D file"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(f"{HUNYUAN3D_SERVICE}/download/{job_id}/{file_type}")
-
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
+            response.raise_for_status()
 
             return StreamingResponse(
                 response.iter_bytes(),
@@ -152,7 +158,7 @@ async def download_3d_file(job_id: str, file_type: str):
                 }
             )
     except Exception as e:
-        logger.error(f"Download failed: {e}")
+        logger.error(f"Download failed for {job_id}/{file_type}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============ Hunyuan Image API Endpoints (Route to :4006) ============
@@ -182,8 +188,9 @@ async def generate_image(request: ImageGenerationRequest):
 async def get_image_job_status(job_id: str):
     """Get image generation job status"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/job/{job_id}")
+            response.raise_for_status()
             data = response.json()
 
         return {
@@ -192,18 +199,16 @@ async def get_image_job_status(job_id: str):
             **data
         }
     except Exception as e:
-        logger.error(f"Failed to get image job status: {e}")
+        logger.error(f"Failed to get image job status for {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/hunyuan3d/download-generated-image/{job_id}")
 async def download_generated_image(job_id: str):
     """Download generated image"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/download/{job_id}")
-
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
+            response.raise_for_status()
 
             return StreamingResponse(
                 response.iter_bytes(),
@@ -213,15 +218,15 @@ async def download_generated_image(job_id: str):
                 }
             )
     except Exception as e:
-        logger.error(f"Download failed: {e}")
+        logger.error(f"Download image failed for {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/hunyuan3d/generate-3d-from-generated-image/{image_job_id}")
 async def generate_3d_from_generated_image(image_job_id: str):
     """Generate 3D model from a generated image"""
     try:
-        # First, download the generated image from the image service
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout since model loading can take ~30 seconds
+        async with httpx.AsyncClient(timeout=60.0) as client:
             # Get the image
             image_response = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/download/{image_job_id}")
 

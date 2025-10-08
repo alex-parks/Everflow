@@ -12,35 +12,39 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install Python packages for Hunyuan3D 2.1
-# Using exact versions that work with Hunyuan3D 2.1
+# Install PyTorch with CUDA support (matching working version)
 RUN pip3 install --no-cache-dir \
-    torch==2.1.2 \
-    torchvision==0.16.2 \
-    torchaudio==2.1.2 \
-    xformers==0.0.23.post1 \
-    transformers==4.46.0 \
-    diffusers==0.30.0 \
-    accelerate==1.1.1 \
-    safetensors==0.4.4 \
-    einops==0.8.0 \
-    huggingface-hub>=0.30.2 \
-    pillow==10.4.0 \
-    numpy==1.24.4 \
-    opencv-python==4.10.0.84 \
-    rembg==2.0.65 \
-    trimesh==4.4.7 \
-    pymeshlab==2022.2.post3 \
-    pygltflib==1.16.3 \
-    open3d==0.18.0 \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Copy Hunyuan3D model files first
+COPY backend/Hunyuan3D-2.1 /app/Hunyuan3D-2.1
+
+# Install Hunyuan3D dependencies from requirements.txt (skip bpy and deepspeed - they're optional)
+WORKDIR /app/Hunyuan3D-2.1
+RUN grep -v -E "^(bpy==|deepspeed)" requirements.txt > requirements_filtered.txt && \
+    pip3 install --no-cache-dir -r requirements_filtered.txt
+
+# Install additional required packages (xformers and flash-attn for efficiency)
+RUN pip3 install --no-cache-dir \
+    xformers \
+    flash-attn \
+    --no-build-isolation || true
+
+# Install API service dependencies
+RUN pip3 install --no-cache-dir \
     fastapi==0.115.12 \
     uvicorn[standard]==0.34.3 \
     aiofiles==24.1.0 \
     python-multipart==0.0.20 \
-    pydantic==2.10.6
+    pydantic==2.10.6 \
+    rembg==2.0.65 \
+    trimesh==4.4.7
 
-# Copy Hunyuan3D model files
-COPY backend/Hunyuan3D-2.1 /app/Hunyuan3D-2.1
+# Return to app directory
+WORKDIR /app
 
 # Copy the Hunyuan3D API service
 COPY backend/hunyuan3d_service.py /app/hunyuan3d_service.py
