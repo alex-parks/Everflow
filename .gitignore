@@ -80,6 +80,17 @@ backend/ComfyUI/
 backend/sd_models/
 backend/SDXL/
 
+# Hunyuan3D 2.1 Service (NEW - image-to-3D generation)
+# Model repository (cloned from HuggingFace/GitHub)
+backend/Hunyuan3D-2.1/
+# Runtime model cache (auto-downloaded on first run)
+backend/.cache/hy3dgen/
+backend/.u2net/
+# Service outputs
+backend/outputs/3d/
+# Service uploads
+backend/uploads/3d/
+
 # HunyuanImage 2.1 model checkpoints and cache (~162GB)
 backend/HunyuanImage-2.1/ckpts/
 backend/HunyuanImage-2.1/ckpts/dit/

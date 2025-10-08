@@ -32,6 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Preload models at startup since we have a dedicated GPU
+@app.on_event("startup")
+async def startup_event():
+    logger.info("🚀 Starting Hunyuan3D service with dedicated GPU 1 (RTX 4090)")
+    logger.info("Loading models at startup for instant availability...")
+    if load_hunyuan3d_models():
+        logger.info("✅ Models preloaded and ready")
+    else:
+        logger.error("❌ Failed to preload models")
+
 # Storage for processing jobs
 PROCESSING_JOBS = {}
 UPLOAD_DIR = Path("/app/uploads/3d")
@@ -84,13 +94,6 @@ def load_hunyuan3d_models():
         import traceback
         logger.error(traceback.format_exc())
         return False
-
-@app.on_event("startup")
-async def startup_event():
-    """Load models on startup"""
-    logger.info("Starting up - loading Hunyuan3D models...")
-    load_hunyuan3d_models()
-    logger.info("Startup complete")
 
 @app.get("/")
 def read_root():
@@ -151,6 +154,7 @@ async def generate_3d(image_id: str):
     PROCESSING_JOBS[job_id] = {
         "status": "queued",
         "progress": 0,
+        "stage": "Queued for processing",
         "image_id": image_id,
         "output_dir": str(job_output_dir),
         "result": None,
@@ -202,45 +206,148 @@ def download_3d_file(job_id: str, file_type: str):
 
     return FileResponse(file_path)
 
+def unload_hunyuan3d_models():
+    """Unload Hunyuan3D models to free GPU memory"""
+    global shape_pipeline, paint_pipeline, rembg
+
+    if shape_pipeline is not None or paint_pipeline is not None:
+        logger.info("🔄 Unloading Hunyuan3D models to free GPU memory...")
+
+        # Clear models
+        shape_pipeline = None
+        paint_pipeline = None
+        rembg = None
+
+        # Force GPU memory cleanup
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        logger.info("✅ GPU memory freed")
+
 async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
     """Process 3D generation in background"""
+
+    def update_progress(progress: int, message: str):
+        """Update job progress and status message"""
+        PROCESSING_JOBS[job_id]["progress"] = progress
+        PROCESSING_JOBS[job_id]["stage"] = message
+        logger.info(f"[{progress}%] {message}")
+
     try:
         PROCESSING_JOBS[job_id]["status"] = "processing"
-        PROCESSING_JOBS[job_id]["progress"] = 10
+        update_progress(0, "Initializing 3D generation pipeline")
 
-        # Models are already loaded at startup
-        if shape_pipeline is None:
-            raise Exception("Shape pipeline not loaded")
-
-        PROCESSING_JOBS[job_id]["progress"] = 30
+        # Ensure models are loaded (should already be loaded from startup)
+        update_progress(5, "Loading AI models...")
+        if shape_pipeline is None and not load_hunyuan3d_models():
+            raise Exception("Failed to load models")
+        update_progress(10, "AI models loaded successfully")
 
         # Preprocess image
         from PIL import Image
         import numpy as np
 
+        update_progress(12, "Loading and preprocessing input image")
         image = Image.open(image_path)
+        original_size = image.size
+        logger.info(f"Input image size: {original_size[0]}x{original_size[1]}")
+
         if image.mode != 'RGB':
             image = image.convert('RGB')
 
-        # Remove background if needed
+        # Remove background with high quality settings
+        update_progress(15, "Removing background with AI (alpha matting)")
         try:
             from rembg import remove
-            image = remove(image)
-            logger.info("Background removed")
-        except:
-            logger.warning("Background removal failed, using original image")
+            # Use U2Net model with alpha matting for better quality
+            image = remove(image, alpha_matting=True, alpha_matting_foreground_threshold=240,
+                          alpha_matting_background_threshold=10, alpha_matting_erode_size=10)
+            update_progress(20, "Background removed successfully")
+        except Exception as e:
+            logger.warning(f"Background removal failed: {e}, using original image")
+            update_progress(20, "Using original image (background removal skipped)")
 
-        PROCESSING_JOBS[job_id]["progress"] = 50
+        # Ensure image is high quality RGB
+        if image.mode == 'RGBA':
+            # Convert RGBA to RGB with white background for better results
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[3])
+            image = background
+            logger.info("✓ Converted RGBA to RGB with white background")
 
-        # Generate 3D shape
-        logger.info(f"Generating 3D shape for job {job_id}")
+        # Generate 3D shape with MAXIMUM QUALITY settings
+        update_progress(22, "Starting diffusion sampling (100 steps)")
+        logger.info(f"Generating 3D shape for job {job_id} with maximum quality")
+
+        # Wrap the pipeline call to track progress
+        import tqdm
+        from functools import partial
+
+        # Create a custom progress tracker
+        class ProgressTracker:
+            def __init__(self, total_steps, start_pct, end_pct):
+                self.total_steps = total_steps
+                self.start_pct = start_pct
+                self.end_pct = end_pct
+                self.current_step = 0
+
+            def update(self, step=None):
+                if step is not None:
+                    self.current_step = step
+                else:
+                    self.current_step += 1
+
+                progress = int(self.start_pct + (self.current_step / self.total_steps) * (self.end_pct - self.start_pct))
+                update_progress(progress, f"Diffusion sampling: step {self.current_step}/{self.total_steps}")
+
+        # Monkey-patch tqdm for this generation
+        original_tqdm = tqdm.tqdm
+        diffusion_tracker = ProgressTracker(100, 22, 55)
+
+        def custom_tqdm(iterable=None, *args, **kwargs):
+            if iterable is not None and hasattr(iterable, '__len__'):
+                total = len(iterable)
+                if total == 100:  # This is our diffusion sampling
+                    class TqdmWrapper:
+                        def __init__(self, iterable):
+                            self.iterable = iterable
+                            self.n = 0
+
+                        def __iter__(self):
+                            for i, item in enumerate(self.iterable):
+                                diffusion_tracker.update(i + 1)
+                                yield item
+
+                        def update(self, n=1):
+                            pass
+
+                        def close(self):
+                            pass
+
+                        def set_description(self, desc):
+                            pass
+
+                    return TqdmWrapper(iterable)
+            return original_tqdm(iterable, *args, **kwargs)
+
+        tqdm.tqdm = custom_tqdm
 
         with torch.no_grad():
             shape_output = shape_pipeline(
                 image,
-                num_inference_steps=30,
-                guidance_scale=7.5
+                num_inference_steps=100,  # MAXIMUM quality (was 30, then 50)
+                guidance_scale=7.5,
+                dual_guidance=True,  # Enable dual guidance for better quality
+                dual_guidance_scale=10.5,  # Dual guidance strength
+                octree_resolution=512,  # MAXIMUM mesh detail resolution (was 384)
+                mc_level=-1 / 1024  # Higher precision marching cubes (was -1/512)
             )
+
+        # Restore original tqdm
+        tqdm.tqdm = original_tqdm
+
+        update_progress(55, "Diffusion sampling complete, extracting 3D mesh")
 
         # Extract mesh (handle different output formats)
         if isinstance(shape_output, list):
@@ -252,11 +359,11 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
 
         logger.info(f"Mesh type: {type(mesh)}")
 
-        PROCESSING_JOBS[job_id]["progress"] = 70
+        update_progress(70, "3D mesh extracted, starting cleanup")
 
         # Apply texture/paint if available
         if paint_pipeline is not None:
-            logger.info("Applying texture...")
+            update_progress(72, "Applying texture to 3D model")
             with torch.no_grad():
                 painted_mesh = paint_pipeline(
                     mesh,
@@ -264,14 +371,13 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
                     num_views=6
                 )
             final_mesh = painted_mesh
+            update_progress(75, "Texture applied successfully")
         else:
-            logger.info("Skipping texture (paint pipeline not available)")
             final_mesh = mesh
 
-        PROCESSING_JOBS[job_id]["progress"] = 90
-
-        # Export to different formats
+        # COMPREHENSIVE MESH CLEANUP AND OPTIMIZATION
         import trimesh
+        update_progress(75, "Converting to trimesh format")
 
         # Convert to trimesh object
         if isinstance(final_mesh, trimesh.Trimesh):
@@ -282,42 +388,94 @@ async def process_3d_generation(job_id: str, image_path: str, output_dir: str):
                 faces=final_mesh.faces
             )
         else:
-            # Already a trimesh object or compatible format
             tri_mesh = final_mesh
 
-        # Export formats
+        # 1. Remove degenerate and duplicate faces
+        update_progress(77, "Cleanup: Removing degenerate faces")
+        tri_mesh.remove_degenerate_faces()
+        tri_mesh.remove_duplicate_faces()
+
+        # 2. Remove unreferenced vertices
+        update_progress(79, "Cleanup: Removing unreferenced vertices")
+        tri_mesh.remove_unreferenced_vertices()
+
+        # 3. Fix mesh normals for proper lighting
+        update_progress(81, "Cleanup: Fixing mesh normals")
+        tri_mesh.fix_normals()
+
+        # 4. Fill small holes in the mesh
+        update_progress(83, "Cleanup: Filling mesh holes")
+        try:
+            tri_mesh.fill_holes()
+        except:
+            logger.warning("Could not fill holes (mesh may be watertight already)")
+
+        # 5. Remove infinite/NaN values
+        update_progress(85, "Cleanup: Removing invalid values")
+        tri_mesh.remove_infinite_values()
+
+        # 6. Subdivide mesh for smoother appearance (optional but recommended)
+        update_progress(87, "Optimization: Subdividing mesh for smoothness")
+        try:
+            # Only subdivide if mesh is not already too dense
+            if len(tri_mesh.vertices) < 500000:
+                logger.info(f"Subdividing mesh from {len(tri_mesh.vertices)} vertices...")
+                tri_mesh = tri_mesh.subdivide()
+                logger.info(f"✓ Subdivided to {len(tri_mesh.vertices)} vertices")
+            else:
+                logger.info("Skipping subdivision (mesh already dense)")
+        except Exception as e:
+            logger.warning(f"Subdivision failed: {e}")
+
+        # Export formats with quality logging
         exports = {}
 
-        # PLY format
+        logger.info(f"Final mesh stats: {len(tri_mesh.vertices)} vertices, {len(tri_mesh.faces)} faces")
+        logger.info(f"Mesh is watertight: {tri_mesh.is_watertight}")
+        logger.info(f"Mesh bounds: {tri_mesh.bounds}")
+
+        # PLY format (high precision)
+        update_progress(90, f"Exporting PLY format ({len(tri_mesh.vertices):,} vertices)")
         ply_path = os.path.join(output_dir, "model.ply")
-        tri_mesh.export(ply_path)
+        tri_mesh.export(ply_path, encoding='binary')
         exports["ply"] = ply_path
+        logger.info(f"✓ Exported PLY: {os.path.getsize(ply_path) / 1024 / 1024:.2f} MB")
 
-        # OBJ format
+        # OBJ format (with normals)
+        update_progress(93, "Exporting OBJ format (with normals)")
         obj_path = os.path.join(output_dir, "model.obj")
-        tri_mesh.export(obj_path)
+        tri_mesh.export(obj_path, include_normals=True)
         exports["obj"] = obj_path
+        logger.info(f"✓ Exported OBJ: {os.path.getsize(obj_path) / 1024 / 1024:.2f} MB")
 
-        # GLB format
+        # GLB format (for web viewing)
+        update_progress(96, "Exporting GLB format (for web viewing)")
         glb_path = os.path.join(output_dir, "model.glb")
         tri_mesh.export(glb_path)
         exports["glb"] = glb_path
+        logger.info(f"✓ Exported GLB: {os.path.getsize(glb_path) / 1024 / 1024:.2f} MB")
 
         # Save result
+        update_progress(98, "Finalizing and saving metadata")
         PROCESSING_JOBS[job_id]["result"] = {
             "exports": exports,
             "vertices": len(tri_mesh.vertices),
-            "faces": len(tri_mesh.faces)
+            "faces": len(tri_mesh.faces),
+            "watertight": tri_mesh.is_watertight,
+            "volume": float(tri_mesh.volume) if tri_mesh.is_watertight else None
         }
-        PROCESSING_JOBS[job_id]["status"] = "completed"
-        PROCESSING_JOBS[job_id]["progress"] = 100
 
-        logger.info(f"✅ Completed job {job_id}")
+        update_progress(100, f"Complete! Generated {len(tri_mesh.vertices):,} vertices, {len(tri_mesh.faces):,} faces")
+        PROCESSING_JOBS[job_id]["status"] = "completed"
+
+        logger.info(f"✅ Completed job {job_id} - MAXIMUM QUALITY MODE")
+        logger.info(f"Models remain loaded on dedicated GPU for instant reuse")
 
     except Exception as e:
         logger.error(f"Job {job_id} failed: {e}")
         PROCESSING_JOBS[job_id]["status"] = "failed"
         PROCESSING_JOBS[job_id]["error"] = str(e)
+        PROCESSING_JOBS[job_id]["stage"] = f"Failed: {str(e)}"
         PROCESSING_JOBS[job_id]["progress"] = 100
 
 if __name__ == "__main__":

@@ -60,7 +60,7 @@ def load_hunyuan_pipeline():
         return True
 
     try:
-        logger.info("Loading Hunyuan Image 2.1 pipeline...")
+        logger.info("🔄 Loading Hunyuan Image 2.1 pipeline...")
 
         # Change to repo directory so relative paths work
         os.chdir("/app/HunyuanImage-2.1")
@@ -87,6 +87,25 @@ def load_hunyuan_pipeline():
         logger.error(traceback.format_exc())
         return False
 
+def unload_hunyuan_pipeline():
+    """Unload Hunyuan Image pipeline to free GPU memory"""
+    global pipeline
+
+    if pipeline is not None:
+        logger.info("🔄 Unloading Hunyuan Image pipeline to free GPU memory...")
+
+        # Clear pipeline
+        pipeline = None
+
+        # Force GPU memory cleanup
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        logger.info("✅ GPU memory freed")
+        return True
+    return False
+
 @app.post("/generate")
 async def generate_image(request: ImageGenerationRequest, background_tasks: BackgroundTasks):
     """Initiate image generation"""
@@ -95,6 +114,7 @@ async def generate_image(request: ImageGenerationRequest, background_tasks: Back
     IMAGE_JOBS[job_id] = {
         "status": "queued",
         "progress": 0,
+        "stage": "Queued for processing",
         "image_path": None,
         "error": None,
         "result": {
@@ -149,15 +169,22 @@ async def download_image(job_id: str):
 
 async def process_image_generation(job_id: str, request: ImageGenerationRequest):
     """Process image generation in background"""
+
+    def update_progress(progress: int, message: str):
+        """Update job progress and status message"""
+        IMAGE_JOBS[job_id]["progress"] = progress
+        IMAGE_JOBS[job_id]["stage"] = message
+        logger.info(f"[{progress}%] {message}")
+
     try:
         IMAGE_JOBS[job_id]["status"] = "processing"
-        IMAGE_JOBS[job_id]["progress"] = 10
+        update_progress(0, "Initializing image generation pipeline")
 
         # Load pipeline if needed
+        update_progress(5, "Loading AI models...")
         if not load_hunyuan_pipeline():
             raise Exception("Failed to load pipeline")
-
-        IMAGE_JOBS[job_id]["progress"] = 30
+        update_progress(15, "AI models loaded successfully")
 
         # Generate image
         logger.info(f"Generating image for job {job_id}")
@@ -167,11 +194,58 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         output_path = OUTPUT_DIR / f"{job_id}.png"
 
         # Create generator with seed if provided
+        update_progress(20, "Preparing generation parameters")
         generator = None
         if request.seed is not None:
             generator = torch.Generator(device="cuda").manual_seed(request.seed)
+            update_progress(22, f"Using seed {request.seed} for reproducibility")
 
-        # Generate
+        # Generate with progress tracking
+        update_progress(25, f"Starting diffusion sampling ({request.num_inference_steps} steps)")
+
+        # Wrap pipeline call to track progress
+        import tqdm
+        original_tqdm = tqdm.tqdm
+
+        class ProgressTracker:
+            def __init__(self, total_steps):
+                self.total_steps = total_steps
+                self.current_step = 0
+
+            def update_step(self, step):
+                self.current_step = step
+                progress = int(25 + (step / self.total_steps) * 60)  # 25-85%
+                update_progress(progress, f"Generating image: step {step}/{self.total_steps}")
+
+        tracker = ProgressTracker(request.num_inference_steps)
+
+        def custom_tqdm(iterable=None, *args, **kwargs):
+            if iterable is not None and hasattr(iterable, '__len__'):
+                total = len(iterable)
+                if total == request.num_inference_steps:
+                    class TqdmWrapper:
+                        def __init__(self, iterable):
+                            self.iterable = iterable
+
+                        def __iter__(self):
+                            for i, item in enumerate(self.iterable):
+                                tracker.update_step(i + 1)
+                                yield item
+
+                        def update(self, n=1):
+                            pass
+
+                        def close(self):
+                            pass
+
+                        def set_description(self, desc):
+                            pass
+
+                    return TqdmWrapper(iterable)
+            return original_tqdm(iterable, *args, **kwargs)
+
+        tqdm.tqdm = custom_tqdm
+
         image = pipeline(
             prompt=request.prompt,
             width=request.width,
@@ -184,15 +258,22 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             generator=generator,
         )
 
-        IMAGE_JOBS[job_id]["progress"] = 80
+        # Restore original tqdm
+        tqdm.tqdm = original_tqdm
+
+        update_progress(85, "Diffusion complete, saving image")
 
         # Save image
         image.save(str(output_path))
         logger.info(f"Image saved to {output_path}")
 
-        IMAGE_JOBS[job_id]["progress"] = 100
+        update_progress(95, f"Image saved ({request.width}x{request.height})")
+
         IMAGE_JOBS[job_id]["status"] = "completed"
         IMAGE_JOBS[job_id]["image_path"] = str(output_path)
+        update_progress(100, f"Complete! Image ready at {output_path.name}")
+
+        logger.info(f"Pipeline remains loaded on dedicated GPU 0 for instant reuse")
 
     except Exception as e:
         logger.error(f"Job {job_id} failed: {e}")
@@ -202,6 +283,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
 
         IMAGE_JOBS[job_id]["status"] = "failed"
         IMAGE_JOBS[job_id]["error"] = str(e)
+        IMAGE_JOBS[job_id]["stage"] = f"Failed: {str(e)}"
 
 @app.get("/health")
 async def health_check():

@@ -120,27 +120,46 @@ async def generate_3d_model(image_id: str):
 
 @app.get("/api/hunyuan3d/job-status/{job_id}")
 async def get_3d_job_status(job_id: str):
-    """Get 3D generation job status"""
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(f"{HUNYUAN3D_SERVICE}/job/{job_id}")
-            response.raise_for_status()
-            data = response.json()
+    """Get 3D generation job status with retry logic for busy service"""
+    import asyncio
 
-        return {
-            "success": True,
-            "job_id": job_id,
-            **data
-        }
-    except httpx.TimeoutException as e:
-        logger.error(f"Timeout getting job status for {job_id}: {e}")
-        raise HTTPException(status_code=504, detail="Request timeout")
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error getting job status for {job_id}: {e.response.status_code}")
-        raise HTTPException(status_code=e.response.status_code, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get job status for {job_id}: {type(e).__name__} - {e}")
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
+    # Try multiple times with shorter timeouts
+    for attempt in range(3):
+        try:
+            timeout_duration = 5.0 + (attempt * 2.0)  # 5s, 7s, 9s
+            async with httpx.AsyncClient(timeout=timeout_duration) as client:
+                response = await client.get(f"{HUNYUAN3D_SERVICE}/job/{job_id}")
+                response.raise_for_status()
+                data = response.json()
+
+            return {
+                "success": True,
+                "job_id": job_id,
+                **data
+            }
+        except httpx.TimeoutException:
+            if attempt < 2:  # Try again
+                await asyncio.sleep(0.5)  # Short delay between retries
+                continue
+            else:  # Final attempt failed - service is very busy
+                logger.warning(f"Service busy after {attempt+1} attempts, assuming job {job_id} is still processing")
+                return {
+                    "success": True,
+                    "job_id": job_id,
+                    "status": "processing",
+                    "progress": 50,
+                    "stage": "Processing (heavy computation in progress)",
+                    "result": None,
+                    "error": None
+                }
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Job not found")
+            logger.error(f"HTTP error getting job status for {job_id}: {e.response.status_code}")
+            raise HTTPException(status_code=e.response.status_code, detail=str(e))
+        except Exception as e:
+            logger.error(f"Failed to get job status for {job_id}: {type(e).__name__} - {e}")
+            raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 @app.get("/api/hunyuan3d/download/{job_id}/{file_type}")
 async def download_3d_file(job_id: str, file_type: str):
@@ -167,11 +186,18 @@ async def download_3d_file(job_id: str, file_type: str):
 async def generate_image(request: ImageGenerationRequest):
     """Generate image using Hunyuan Image 2.1"""
     try:
+        # Convert request to dict (compatible with both Pydantic v1 and v2)
+        try:
+            request_data = request.model_dump()  # Pydantic v2
+        except AttributeError:
+            request_data = request.dict()  # Pydantic v1 fallback
+
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 f"{HUNYUAN_IMAGE_SERVICE}/generate",
-                json=request.dict()
+                json=request_data
             )
+            response.raise_for_status()
             data = response.json()
 
         return {
@@ -180,15 +206,20 @@ async def generate_image(request: ImageGenerationRequest):
             "status": data["status"],
             "message": "Image generation started"
         }
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error during image generation: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except Exception as e:
-        logger.error(f"Image generation failed: {e}")
+        logger.error(f"Image generation failed: {type(e).__name__} - {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/hunyuan3d/image-job-status/{job_id}")
 async def get_image_job_status(job_id: str):
     """Get image generation job status"""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.get(f"{HUNYUAN_IMAGE_SERVICE}/job/{job_id}")
             response.raise_for_status()
             data = response.json()
